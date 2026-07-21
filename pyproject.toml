@@ -19,6 +19,7 @@ dependencies = [
     "python-jose[cryptography]>=1.0",
     "passlib[bcrypt]>=1.7",
     "python-multipart>=0.0.18",
+    "duckdb>=1.5.4",
 ]
 
 [dependency-groups]

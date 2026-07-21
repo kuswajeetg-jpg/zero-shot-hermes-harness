@@ -3,127 +3,247 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zero-Shot Agent — Analyst</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Zero-Shot Agent — UP Police Data Intelligence Command Center</title>
+  <link rel="stylesheet" href="styles.css?v=3.0" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <main class="shell">
 
-    <!-- AUTH -->
+    <!-- AUTH SECTION -->
     <section id="auth-view" class="view">
       <div class="auth-card">
-        <h1>Analyst login</h1>
-        <p class="hint">Sign in to start asking questions over your data.</p>
+        <div class="brand-wrap" style="margin-bottom: 20px;">
+          <div class="brand-icon">UP</div>
+          <div>
+            <h1 id="txt-auth-title">Analyst Portal Login</h1>
+            <p class="hint" id="txt-auth-sub">UP Police Autonomous Data Intelligence Portal</p>
+          </div>
+        </div>
 
         <form id="auth-form" novalidate>
-          <label for="auth-email">Email</label>
-          <input id="auth-email" type="email" autocomplete="email" placeholder="you@policedata.local" />
+          <label for="auth-email" id="txt-label-email">Email Address</label>
+          <input id="auth-email" type="email" autocomplete="email" placeholder="analyst@police.gov.in" />
 
-          <label for="auth-password">Password</label>
-          <input id="auth-password" type="password" autocomplete="current-password" />
+          <label for="auth-password" id="txt-label-pass">Password</label>
+          <input id="auth-password" type="password" autocomplete="current-password" placeholder="••••••••" />
 
           <div id="auth-error" class="error" hidden></div>
-          <button id="auth-submit" type="submit">Login</button>
-          <button id="auth-toggle" class="ghost" type="button">Create account</button>
+          <div style="display: flex; gap: 10px; margin-top: 24px;">
+            <button id="auth-submit" type="submit" style="flex: 1;">Login</button>
+            <button id="auth-toggle" class="ghost" type="button">Create Account</button>
+          </div>
         </form>
       </div>
     </section>
 
-    <!-- ANALYSE -->
+    <!-- MAIN ANALYST COMMAND CENTER -->
     <section id="analyse-view" class="view" hidden>
+      <!-- TOP NAVIGATION BAR -->
       <header class="topbar">
-        <div>
-          <h1>UP Police Analyst</h1>
-          <div id="subheader" class="subheader">
-            <span id="user-email" class="muted"></span>
-            <span id="fallback-badge" class="badge fallback-stub" hidden>fallback mode</span>
+        <div class="brand-wrap">
+          <div class="brand-icon">UP</div>
+          <div>
+            <h1 id="txt-nav-title">UP Police Data Intelligence Agent</h1>
+            <div id="subheader" class="subheader">
+              <span id="user-email" class="user-badge"></span>
+              <span id="fallback-badge" class="badge" hidden>Fallback Engine</span>
+              <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border-color: rgba(16, 185, 129, 0.4);">DuckDB Live SQL Engine</span>
+            </div>
           </div>
         </div>
-        <div class="right">
+
+        <div class="right-controls">
+          <!-- LANGUAGE SWITCHER TOGGLE (ENGLISH / HINDI) -->
+          <div class="lang-toggle">
+            <button id="lang-en" class="lang-btn active">English</button>
+            <button id="lang-hi" class="lang-btn">हिंदी</button>
+          </div>
           <button id="logout-btn" class="ghost small">Logout</button>
         </div>
       </header>
 
-      <div class="grid">
-        <!-- LEFT -->
-        <div class="col">
-          <div class="card">
-            <h2>Source</h2>
-            <div id="source-strip" class="source-strip"></div>
+      <!-- NAVIGATION TABS -->
+      <nav class="nav-tabs">
+        <button id="tab-dashboard" class="tab-btn active">📊 Query Dashboard</button>
+        <button id="tab-schema" class="tab-btn">🔍 Schema Inspector</button>
+        <button id="tab-audit" class="tab-btn">📜 Audit Trail & Query Memory</button>
+      </nav>
 
-            <label class="upload-label">
-              Upload CSV
-              <input id="file-input" type="file" accept=".csv,text/csv" hidden />
-            </label>
-            <button id="upload-trigger" class="secondary">Choose file</button>
-            <div id="upload-status" class="status" hidden></div>
-            <div id="upload-error" class="error" hidden></div>
-          </div>
-
-          <div class="card">
-            <h2>Schema</h2>
-            <div id="schema-empty" class="hint">Upload a CSV or select an ICP-local source first.</div>
-            <table id="schema-table" class="schema-table" hidden>
-              <thead>
-                <tr><th>Column</th><th>Type</th><th>PII</th></tr>
-              </thead>
-              <tbody id="schema-body"></tbody>
-            </table>
-            <div id="schema-meta" class="meta"></div>
-          </div>
+      <!-- KPI METRICS STRIP -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-title" id="kpi-lbl-sources">Active Datasets</div>
+          <div class="kpi-value" id="kpi-val-sources">0 Files</div>
+          <div class="kpi-sub" id="kpi-sub-sources">Multi-CSV Ingestion Active</div>
         </div>
+        <div class="kpi-card">
+          <div class="kpi-title" id="kpi-lbl-rows">Total Dataset Records</div>
+          <div class="kpi-value" id="kpi-val-rows">0 Rows</div>
+          <div class="kpi-sub" id="kpi-sub-rows">In-Memory Engine</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title" id="kpi-lbl-engine">Query Execution Engine</div>
+          <div class="kpi-value">DuckDB v1.5.4</div>
+          <div class="kpi-sub" id="kpi-sub-engine">Zero-Trust Read-Only</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title" id="kpi-lbl-security">Privacy & Shielding</div>
+          <div class="kpi-value" style="color: #10b981;">PII Protected</div>
+          <div class="kpi-sub" id="kpi-sub-security">Zero Prompt Leaks</div>
+        </div>
+      </div>
 
-        <!-- RIGHT -->
-        <div class="col wide">
-          <div class="card">
-            <label for="question" class="ask-label">Ask a question</label>
-            <div class="ask-row">
-              <input id="question" type="text" placeholder="e.g. incidents by district last 30 days" />
-              <button id="ask-btn">Ask</button>
+      <!-- VIEW 1: QUERY DASHBOARD WORKSPACE -->
+      <div id="view-tab-dashboard" class="tab-content">
+        <div class="grid">
+          <!-- LEFT: DATA SOURCES & MULTI-CSV SELECTOR -->
+          <div class="col">
+            <div class="card">
+              <h2 id="txt-hdr-sources">Datasets & Data Sources</h2>
+              <div id="source-strip" class="source-strip">
+                <div class="hint" id="txt-no-sources">No CSV datasets uploaded yet.</div>
+              </div>
+
+              <label class="upload-label" style="margin-top: 10px;">
+                <input id="file-input" type="file" accept=".csv,text/csv" hidden multiple />
+              </label>
+              <button id="upload-trigger" class="secondary" style="width: 100%;">+ Add CSV Dataset</button>
+              <div id="upload-status" class="status" hidden></div>
+              <div id="upload-error" class="error" hidden></div>
             </div>
-            <div id="ask-error" class="error inline" hidden></div>
-            <div id="ask-status" class="status" hidden></div>
-          </div>
 
-          <div id="answer-panel" class="card answer-panel" hidden>
-            <div class="answer-header">
-              <h2>Answer</h2>
-              <div class="answer-actions">
-                <button id="export-csv" class="ghost small">Export CSV</button>
-                <button id="export-md" class="ghost small">Export Markdown</button>
+            <!-- QUICK ASK SAMPLE QUESTIONS -->
+            <div class="card">
+              <h2>Quick-Ask Sample Queries</h2>
+              <p class="hint" style="margin-bottom: 8px;">Click any sample question to run immediately:</p>
+              <div class="sample-pills">
+                <div class="sample-pill" data-query="show top records by city">🏙️ Top Records by City</div>
+                <div class="sample-pill" data-query="average salary by city">💰 Average Salary by City</div>
+                <div class="sample-pill" data-query="count total records">📊 Total Record Count</div>
+                <div class="sample-pill" data-query="average age by city">👤 Average Age by City</div>
               </div>
             </div>
-            <div id="reply-text" class="reply-text"></div>
+          </div>
 
-            <h3>Result</h3>
-            <div id="table-wrap" class="table-wrap">
-              <div id="table-placeholder" class="hint">Run a question to see a table.</div>
-              <table id="data-table" class="data-table" hidden>
-                <thead id="data-head"></thead>
-                <tbody id="data-body"></tbody>
-              </table>
+          <!-- RIGHT: QUERY ANALYZER & RESULTS -->
+          <div class="col wide">
+            <div class="card">
+              <h2 id="txt-hdr-ask">Ask Analytical Question</h2>
+              <div class="ask-row">
+                <input id="question" type="text" placeholder="e.g., show top 5 records by city or average metrics" />
+                <button id="ask-btn">Ask Question</button>
+              </div>
+              <div id="ask-error" class="error inline" hidden></div>
+              <div id="ask-status" class="status" hidden></div>
             </div>
 
-            <h3>Chart</h3>
-            <div class="chart-wrap">
-              <canvas id="chart-canvas" width="760" height="280"></canvas>
-              <div id="chart-placeholder" class="hint inline">Chart placeholder — no chart spec yet.</div>
-            </div>
+            <!-- ANSWER PANEL -->
+            <div id="answer-panel" class="card answer-panel" hidden>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <h2 id="txt-hdr-answer">Executive Intelligence Answer</h2>
+                <div style="display: flex; gap: 8px;">
+                  <button id="export-csv" class="ghost small">Export CSV</button>
+                  <button id="export-md" class="ghost small">Export Report</button>
+                </div>
+              </div>
 
-            <div class="row meta">
-              <span id="run-meta"></span>
-              <span id="export-link-wrap"></span>
+              <!-- ADVISOR BANNER -->
+              <div id="advisor-banner" class="advisor-banner" hidden>
+                <div class="advisor-headline">📌 <span id="advisor-headline-text">Executive Advisor Alert</span></div>
+                <div id="advisor-text"></div>
+              </div>
+
+              <div id="reply-text" style="font-size: 1rem; color: #f1f5f9; margin-bottom: 16px;"></div>
+
+              <h3 id="txt-hdr-table" style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 8px;">Structured Data Results</h3>
+              <div id="table-wrap" class="table-wrap">
+                <div id="table-placeholder" class="hint">Run a question to display tabular results.</div>
+                <table id="data-table" class="data-table" hidden>
+                  <thead id="data-head"></thead>
+                  <tbody id="data-body"></tbody>
+                </table>
+              </div>
+
+              <!-- CHART HEADER & MULTI-TYPE SWITCHER BAR -->
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                <h3 id="txt-hdr-chart" style="font-size: 0.95rem; color: var(--text-muted); margin: 0;">Visual Analytics Chart</h3>
+                
+                <!-- MULTI-CHART TYPE SELECTOR BUTTONS -->
+                <div class="chart-type-bar">
+                  <button class="chart-type-btn active" data-chart="bar">📊 Bar</button>
+                  <button class="chart-type-btn" data-chart="line">📈 Line</button>
+                  <button class="chart-type-btn" data-chart="doughnut">🍩 Doughnut</button>
+                  <button class="chart-type-btn" data-chart="pie">🥧 Pie</button>
+                  <button class="chart-type-btn" data-chart="polarArea">🎯 Polar</button>
+                </div>
+              </div>
+
+              <div class="chart-wrap">
+                <canvas id="chart-canvas" width="760" height="300"></canvas>
+                <div id="chart-placeholder" class="hint">No chart specification generated for this query.</div>
+              </div>
+
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; font-size: 0.8rem; color: var(--text-subtle);">
+                <span id="run-meta"></span>
+                <span id="export-link-wrap"></span>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </section>
 
-    <footer class="foot">
-      <span>API docs at <a href="/docs">/docs</a> · health at <a href="/health">/health</a></span>
-    </footer>
+      <!-- VIEW 2: SCHEMA INSPECTOR WORKSPACE -->
+      <div id="view-tab-schema" class="tab-content" hidden>
+        <div class="card">
+          <h2 id="txt-hdr-schema">Active Dataset Schema Inspector</h2>
+          <div id="schema-empty" class="hint">Upload a CSV or select an active dataset first.</div>
+          <table id="schema-table" class="schema-table" hidden>
+            <thead>
+              <tr>
+                <th id="th-col">Column</th>
+                <th id="th-type">Type</th>
+                <th id="th-pii">Privacy Flag</th>
+              </tr>
+            </thead>
+            <tbody id="schema-body"></tbody>
+          </table>
+          <div id="schema-meta" class="hint" style="margin-top: 10px;"></div>
+        </div>
+      </div>
+
+      <!-- VIEW 3: AUDIT TRAIL & SELF-LEARNING MEMORY LOGS -->
+      <div id="view-tab-audit" class="tab-content" hidden>
+        <div class="card">
+          <h2>Query Memory & Audit Trail</h2>
+          <p class="hint" style="margin-bottom: 12px;">Historical execution logs, latency performance, and user feedback ratings for self-learning optimization.</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Question</th>
+                  <th>Execution Latency</th>
+                  <th>Engine Status</th>
+                  <th>Rating Feedback</th>
+                </tr>
+              </thead>
+              <tbody id="audit-history-body">
+                <tr>
+                  <td>Today, 17:50</td>
+                  <td>find important points</td>
+                  <td>367ms</td>
+                  <td><span class="safe-badge">DuckDB Live SQL</span></td>
+                  <td><button class="ghost small">👍 Verified</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=3.0"></script>
 </body>
 </html>

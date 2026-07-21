@@ -27,7 +27,16 @@ def create_app() -> FastAPI:
 
     from src.api import health, runs, auth, analyst, sources, merge
     from src.config.settings import get_settings
+    from fastapi import APIRouter
 
+    api_router = APIRouter(prefix="/api")
+    api_router.include_router(health.router)
+    api_router.include_router(runs.router)
+    api_router.include_router(auth.router)
+    api_router.include_router(analyst.router)
+    api_router.include_router(sources.router)
+
+    app.include_router(api_router)
     app.include_router(health.router)
     app.include_router(runs.router)
     app.include_router(auth.router)

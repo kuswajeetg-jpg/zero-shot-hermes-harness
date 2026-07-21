@@ -1,0 +1,2 @@
+question,query
+"Top 5","{\"columns\": [\"category\", \"count\"], \"rows\": [{\"category\": \"Category A / District 1\", \"count\": 142}, {\"category\": \"Category B / District 2\", \"count\": 98}, {\"category\": \"Category C / District 3\", \"count\": 76}, {\"category\": \"Category D / District 4\", \"count\": 54}, {\"category\": \"Category E / District 5\", \"count\": 31}], \"timed_out\": false}"

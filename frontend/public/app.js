@@ -1,4 +1,4 @@
-// Analyst Phase 1 — vanilla JS, zero build.
+// Production Data Intelligence Command Center — Bilingual, Multi-CSV, & Multi-Chart Engine.
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -6,18 +6,132 @@ const $ = (id) => document.getElementById(id);
 const state = {
   token: localStorage.getItem("analyst_token"),
   user: null,
-  source: null,
+  sources: [],
+  activeSource: null,
   lastAsk: null,
+  lang: localStorage.getItem("analyst_lang") || "en",
+  activeTab: "dashboard",
+  currentRows: [],
+  currentCols: [],
+  currentSpec: null,
+  selectedChartType: "bar",
 };
 
-// ---------- utils ----------
-function setText(id, text) {
-  const el = $(`${id}`);
-  if (!el) return;
-  if (!text) el.hidden = true;
-  else { el.textContent = text; el.hidden = false; }
+// ---------- Bilingual Dictionary ----------
+const dict = {
+  en: {
+    navTitle: "UP Police Data Intelligence Agent",
+    authTitle: "Analyst Portal Login",
+    authSub: "UP Police Autonomous Data Intelligence Portal",
+    labelEmail: "Email Address",
+    labelPass: "Password",
+    btnLogin: "Login",
+    btnRegister: "Create Account",
+    kpiSources: "Active Datasets",
+    kpiRows: "Total Dataset Records",
+    kpiEngine: "Query Execution Engine",
+    kpiSecurity: "Privacy & Shielding",
+    hdrSources: "Datasets & Data Sources",
+    hdrSchema: "Schema Inspector",
+    hdrAsk: "Ask Analytical Question",
+    hdrAnswer: "Executive Intelligence Answer",
+    hdrTable: "Structured Data Results",
+    hdrChart: "Visual Analytics Chart",
+    btnAddCsv: "+ Add CSV Dataset",
+    askPlaceholder: "e.g., show top 5 records by city or average metrics",
+    askBtn: "Ask Question",
+    thCol: "Column",
+    thType: "Type",
+    thPii: "Privacy Flag",
+    noSources: "No CSV datasets uploaded yet.",
+    exportCsv: "Export CSV",
+    exportMd: "Export Report",
+  },
+  hi: {
+    navTitle: "उत्तर प्रदेश पुलिस डेटा इंटेलिजेंस एजेंट",
+    authTitle: "विश्लेषक पोर्टल लॉगिन",
+    authSub: "उत्तर प्रदेश पुलिस स्वायत्त डेटा विश्लेषक पोर्टल",
+    labelEmail: "ईमेल पता",
+    labelPass: "पासवर्ड",
+    btnLogin: "लॉगिन करें",
+    btnRegister: "नया खाता बनाएं",
+    kpiSources: "सक्रिय डेटासेट",
+    kpiRows: "कुल डेटा रिकॉर्ड",
+    kpiEngine: "क्वेरी एक्ज़ीक्यूशन इंजन",
+    kpiSecurity: "गोपनीयता एवं सुरक्षा",
+    hdrSources: "डेटासेट एवं डेटा स्रोत",
+    hdrSchema: "डेटा संरचना (स्कीमा)",
+    hdrAsk: "विश्लेषणात्मक प्रश्न पूछें",
+    hdrAnswer: "कार्यकारी इंटेलिजेंस उत्तर",
+    hdrTable: "संरचित डेटा परिणाम",
+    hdrChart: "दृश्य आलेख (चार्ट) विश्लेषण",
+    btnAddCsv: "+ CSV डेटासेट जोड़ें",
+    askPlaceholder: "उदा., शहर के अनुसार शीर्ष 5 रिकॉर्ड दिखाएं या औसत डेटा",
+    askBtn: "प्रश्न पूछें",
+    thCol: "फ़ील्ड (कॉलम)",
+    thType: "प्रकार",
+    thPii: "गोपनीयता ध्वज",
+    noSources: "अभी तक कोई CSV डेटासेट अपलोड नहीं हुआ है।",
+    exportCsv: "CSV डाउनलोड",
+    exportMd: "रिपोर्ट डाउनलोड",
+  }
+};
+
+function applyLanguage(lang) {
+  state.lang = lang;
+  localStorage.setItem("analyst_lang", lang);
+  const t = dict[lang] || dict.en;
+
+  $("txt-nav-title").textContent = t.navTitle;
+  $("txt-auth-title").textContent = t.authTitle;
+  $("txt-auth-sub").textContent = t.authSub;
+  $("txt-label-email").textContent = t.labelEmail;
+  $("txt-label-pass").textContent = t.labelPass;
+  $("auth-submit").textContent = t.btnLogin;
+  $("auth-toggle").textContent = t.btnRegister;
+  
+  $("kpi-lbl-sources").textContent = t.kpiSources;
+  $("kpi-lbl-rows").textContent = t.kpiRows;
+  $("kpi-lbl-engine").textContent = t.kpiEngine;
+  $("kpi-lbl-security").textContent = t.kpiSecurity;
+
+  $("txt-hdr-sources").textContent = t.hdrSources;
+  $("txt-hdr-schema").textContent = t.hdrSchema;
+  $("txt-hdr-ask").textContent = t.hdrAsk;
+  $("txt-hdr-answer").textContent = t.hdrAnswer;
+  $("txt-hdr-table").textContent = t.hdrTable;
+  $("txt-hdr-chart").textContent = t.hdrChart;
+
+  $("upload-trigger").textContent = t.btnAddCsv;
+  $("question").placeholder = t.askPlaceholder;
+  $("ask-btn").textContent = t.askBtn;
+  $("th-col").textContent = t.thCol;
+  $("th-type").textContent = t.thType;
+  $("th-pii").textContent = t.thPii;
+  $("export-csv").textContent = t.exportCsv;
+  $("export-md").textContent = t.exportMd;
+
+  $("lang-en").classList.toggle("active", lang === "en");
+  $("lang-hi").classList.toggle("active", lang === "hi");
 }
 
+// ---------- Tab Switcher ----------
+function switchTab(tabName) {
+  state.activeTab = tabName;
+  $("tab-dashboard").classList.toggle("active", tabName === "dashboard");
+  $("tab-schema").classList.toggle("active", tabName === "schema");
+  $("tab-audit").classList.toggle("active", tabName === "audit");
+
+  $("view-tab-dashboard").hidden = tabName !== "dashboard";
+  $("view-tab-schema").hidden = tabName !== "schema";
+  $("view-tab-audit").hidden = tabName !== "audit";
+}
+
+$("tab-dashboard").addEventListener("click", () => switchTab("dashboard"));
+$("tab-schema").addEventListener("click", () => switchTab("schema"));
+$("tab-audit").addEventListener("click", () => switchTab("audit"));
+
+// ---------- API Wrapper ----------
 function header(path, method = "GET", body) {
   const h = { "content-type": "application/json" };
   if (state.token) h["authorization"] = `Bearer ${state.token}`;
@@ -42,233 +156,260 @@ async function api(input) {
   return body;
 }
 
+// ---------- Views & Navigation ----------
 function viewer() {
   if (!state.token) { showAuth(); return; }
   $("analyse-view").hidden = false;
   $("auth-view").hidden = true;
   $("user-email").textContent = state.user?.email || "";
+  loadUploads();
 }
 
 function showAuth(mode) {
-  state.token = state.user = state.source = state.lastAsk = null;
+  state.token = state.user = state.sources = state.activeSource = state.lastAsk = null;
   localStorage.removeItem("analyst_token");
   $("analyse-view").hidden = true;
   $("auth-view").hidden = false;
   const form = $("auth-form");
   form.reset();
   $("auth-error").hidden = true;
-  $("auth-submit").textContent = mode === "register" ? "Register" : "Login";
-  $("auth-toggle").textContent = mode === "register" ? "Have an account? Login" : "Create account";
-  $("auth-form").dataset.mode = mode || "login";
+  $("auth-submit").textContent = mode === "register" ? (dict[state.lang]?.btnRegister || "Create Account") : (dict[state.lang]?.btnLogin || "Login");
 }
 
-// ---------- auth ----------
-async function submitAuth(e) {
+let authMode = "login";
+$("auth-toggle").addEventListener("click", () => {
+  authMode = authMode === "login" ? "register" : "login";
+  $("auth-submit").textContent = authMode === "register" ? (dict[state.lang]?.btnRegister || "Create Account") : (dict[state.lang]?.btnLogin || "Login");
+  $("auth-toggle").textContent = authMode === "register" ? "Switch to Login" : (dict[state.lang]?.btnRegister || "Create Account");
+});
+
+$("auth-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const email = $("auth-email").value.trim();
+  const password = $("auth-password").value.trim();
   const errBox = $("auth-error");
   errBox.hidden = true;
+  if (!email || !password) { errBox.textContent = "Please enter email and password."; errBox.hidden = false; return; }
 
-  const email = $("auth-email").value.trim();
-  const password = $("auth-password").value;
-  const mode = $("auth-form").dataset.mode || "login";
-  const path = mode === "register" ? "/api/auth/register" : "/api/auth/login";
-
-  $("auth-submit").disabled = true;
-  $("auth-submit").textContent = mode === "register" ? "Creating…" : "Logging in…";
+  const path = authMode === "register" ? "/api/auth/register" : "/api/auth/login";
   try {
-    const body = await api({ path, method: "POST", headers: { "content-type": "application/json" }, body: { email, password } });
-    state.token = body.data?.access_token;
+    const res = await api({ path, method: "POST", headers: { "content-type": "application/json" }, body: { email, password } });
+    if (authMode === "register") {
+      const loginRes = await api({ path: "/api/auth/login", method: "POST", headers: { "content-type": "application/json" }, body: { email, password } });
+      state.token = loginRes.data.access_token;
+    } else {
+      state.token = res.data.access_token;
+    }
     state.user = { email };
     localStorage.setItem("analyst_token", state.token);
     viewer();
-    renderSources();
   } catch (err) {
-    setText("auth-error", err.message);
-  } finally {
-    $("auth-submit").disabled = false;
-    $("auth-submit").textContent = mode === "register" ? "Register" : "Login";
+    errBox.textContent = err.message; errBox.hidden = false;
+  }
+});
+
+$("logout-btn").addEventListener("click", () => showAuth("login"));
+
+// ---------- Multi-CSV Datasets Manager ----------
+async function loadUploads() {
+  try {
+    const res = await api(header("/api/uploads", "GET"));
+    const items = res.data?.items || [];
+    state.sources = items;
+    renderSourceStrip(items);
+    updateKpis();
+    if (items.length > 0 && !state.activeSource) {
+      selectSource(items[0]);
+    }
+  } catch (err) {
+    console.error("Failed to load sources:", err);
   }
 }
 
-$("auth-toggle").addEventListener("click", () => {
-  const mode = ($("auth-form").dataset.mode || "login") === "login" ? "register" : "login";
-  $("auth-form").reset();
-  $("auth-error").hidden = true;
-  $("auth-submit").textContent = mode === "register" ? "Register" : "Login";
-  $("auth-toggle").textContent = mode === "register" ? "Have an account? Login" : "Create account";
-  $("auth-form").dataset.mode = mode;
-});
+async function deleteDataset(uploadId, e) {
+  if (e) e.stopPropagation();
+  if (!confirm("Are you sure you want to remove this dataset?")) return;
+  try {
+    await api(header(`/api/uploads/${uploadId}`, "DELETE"));
+    if (state.activeSource?.upload_id === uploadId) {
+      state.activeSource = null;
+    }
+    await loadUploads();
+    if (state.sources.length === 0) {
+      renderSchema([], 0);
+    }
+  } catch (err) {
+    alert("Failed to delete dataset: " + err.message);
+  }
+}
 
-$("auth-form").addEventListener("submit", submitAuth);
-
-$("logout-btn").addEventListener("click", showAuth);
-
-// ---------- sources ----------
-function chips(sources, activeId) {
+function renderSourceStrip(items) {
   const strip = $("source-strip");
   strip.innerHTML = "";
-  if (!sources?.length) {
-    strip.innerHTML = '<span class="muted">No sources yet.</span>';
+  if (!items.length) {
+    strip.innerHTML = `<div class="hint">${dict[state.lang]?.noSources || "No CSV datasets uploaded yet."}</div>`;
     return;
   }
-  for (const s of sources) {
-    const c = document.createElement("button");
-    c.className = "chip" + (s.id === activeId ? " active" : "");
-    c.textContent = s.display_name || s.id;
-    c.title = s.kind === "csv" ? "Local CSV upload" : "ICP-local MsSQL";
-    c.addEventListener("click", () => pickSource(s));
-    strip.appendChild(c);
-  }
+  items.forEach((item) => {
+    const chip = document.createElement("div");
+    chip.className = `source-chip ${state.activeSource?.upload_id === item.upload_id ? "active" : ""}`;
+    chip.innerHTML = `
+      <span style="flex: 1; display: flex; align-items: center; gap: 6px;">
+        📄 ${item.filename} <span style="opacity: 0.6; font-size: 0.75rem;">(${item.rows.toLocaleString()} rows)</span>
+      </span>
+      <button class="del-btn" title="Remove Dataset" style="background: transparent; border: none; color: #f43f5e; padding: 2px 6px; font-size: 0.85rem; margin-top: 0; box-shadow: none; cursor: pointer;">🗑️</button>
+    `;
+    chip.addEventListener("click", () => selectSource(item));
+    const delBtn = chip.querySelector(".del-btn");
+    delBtn.addEventListener("click", (e) => deleteDataset(item.upload_id, e));
+    strip.appendChild(chip);
+  });
 }
 
-function pickSource(s) {
-  state.source = s;
-  renderSources();
-  renderSchemaForSource(s);
+function selectSource(source) {
+  state.activeSource = source;
+  renderSourceStrip(state.sources);
+  renderSchema(source.schema || [], source.rows || 0);
 }
 
-function renderSources() {
-  const local = getLocalSource();
-  const chipsArr = [];
-  if (local) chipsArr.push({ id: local.id, display_name: local.name, kind: "csv" });
-  chips(chipsArr, state.source?.id);
-}
-
-function getLocalSource() {
-  const raw = localStorage.getItem("analyst_local_source");
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-function setLocalSource(s) { localStorage.setItem("analyst_local_source", JSON.stringify(s)); }
-
-function renderSchemaForSource(source) {
-  const tbody = $("schema-body");
-  const meta = $("schema-meta");
+function renderSchema(schema, totalRows) {
   const table = $("schema-table");
+  const body = $("schema-body");
   const empty = $("schema-empty");
-  tbody.innerHTML = "";
-  meta.textContent = "";
-  table.hidden = true;
-  empty.hidden = true;
+  const meta = $("schema-meta");
+  body.innerHTML = "";
 
-  const schema = source?.schema;
-  if (!schema || !schema.length) {
-    empty.hidden = false;
-    return;
+  if (!schema.length) {
+    table.hidden = true; empty.hidden = false; meta.textContent = ""; return;
   }
-  table.hidden = false;
-  for (const col of schema) {
+  empty.hidden = true; table.hidden = false;
+
+  schema.forEach((col) => {
     const tr = document.createElement("tr");
-    const tdName = document.createElement("td");
-    tdName.textContent = col.name;
-    const tdType = document.createElement("td");
-    tdType.textContent = col.type || "";
-    const tdPii = document.createElement("td");
-    tdPii.innerHTML = col.pii ? `<span class="pill">PII</span>` : '<span class="muted">—</span>';
-    tr.append(tdName, tdType, tdPii);
-    tbody.appendChild(tr);
-  }
-  meta.textContent = `${schema.length} columns · ${source.rows ?? "?"} rows`;
+    const isPii = col.pii === true || col.pii === "true";
+    tr.innerHTML = `
+      <td style="font-weight: 600;">${col.name}</td>
+      <td style="color: var(--text-muted);">${col.type || "text"}</td>
+      <td>${isPii ? '<span class="pii-badge">PII Protected</span>' : '<span class="safe-badge">Safe</span>'}</td>
+    `;
+    body.appendChild(tr);
+  });
+
+  meta.textContent = `${schema.length} Columns · ${totalRows.toLocaleString()} Total Records`;
 }
 
-// ---------- upload ----------
+function updateKpis() {
+  const totalFiles = state.sources.length;
+  const totalRows = state.sources.reduce((acc, curr) => acc + (curr.rows || 0), 0);
+  $("kpi-val-sources").textContent = `${totalFiles} File${totalFiles === 1 ? "" : "s"}`;
+  $("kpi-val-rows").textContent = `${totalRows.toLocaleString()} Rows`;
+}
+
+// ---------- Upload Handler ----------
 $("upload-trigger").addEventListener("click", () => $("file-input").click());
 $("file-input").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const files = e.target.files;
+  if (!files || !files.length) return;
   const status = $("upload-status");
   const errBox = $("upload-error");
-  errBox.hidden = true;
-  status.hidden = false;
-  status.textContent = `Uploading ${file.name}…`;
-  try {
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: form, headers: { "authorization": `Bearer ${state.token}` } });
-    const text = await res.text();
-    let body;
-    try { body = JSON.parse(text); } catch { body = { raw: text }; }
-    if (!res.ok) throw new Error(body?.detail?.message || body?.raw || `Upload failed: ${res.status}`);
-    const data = body.data || {};
-    const source = {
-      id: `csv_${data.upload_id}`,
-      name: file.name,
-      kind: "csv",
-      schema: data.schema,
-      rows: data.rows,
-      warnings: data.warnings,
-    };
-    setLocalSource(source);
-    setText("upload-status", `Uploaded ${file.name}`);
-    state.source = source;
-    renderSources();
-    renderSchemaForSource(source);
-  } catch (err) {
-    setText("upload-error", err.message);
-    setText("upload-status", "");
-  } finally {
-    $("file-input").value = "";
+  errBox.hidden = true; status.hidden = false;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    status.textContent = `Uploading ${file.name} (${i + 1}/${files.length})…`;
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form, headers: { "authorization": `Bearer ${state.token}` } });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    } catch (err) {
+      errBox.textContent = err.message; errBox.hidden = false;
+    }
   }
+  status.hidden = true;
+  await loadUploads();
 });
 
-// ---------- ask ----------
-async function submitQuestion() {
-  const source = state.source || getLocalSource();
-  if (!source) { setText("ask-error", "Select or upload a source first."); return; }
+// ---------- Quick Ask Pills ----------
+document.querySelectorAll(".sample-pill").forEach((pill) => {
+  pill.addEventListener("click", () => {
+    const q = pill.getAttribute("data-query");
+    if (q) {
+      $("question").value = q;
+      submitQuestion();
+    }
+  });
+});
 
+// ---------- Ask Question Execution ----------
+async function submitQuestion() {
   const errBox = $("ask-error");
   const q = $("question").value.trim();
   errBox.hidden = true;
-  if (!q) { setText("ask-error", "Please enter a question."); return; }
+  if (!q) { errBox.textContent = "Please enter a valid query."; errBox.hidden = false; return; }
+
+  const activeSrc = state.activeSource;
+  const sourceId = activeSrc ? `csv_${activeSrc.upload_id}` : "csv_latest";
 
   const btn = $("ask-btn");
   const status = $("ask-status");
-  btn.disabled = true;
-  setText("ask-status", "Running…");
+  btn.disabled = true; status.hidden = false; status.textContent = "Executing DuckDB SQL query…";
+
   try {
-    const bodyInput = { session_token: source.id, source_id: source.id, question: q };
+    const bodyInput = { session_token: sourceId, source_id: sourceId, question: q, user_id: state.user?.email || "local" };
     const body = await api({ path: "/api/ask", method: "POST", headers: { "content-type": "application/json" }, body: bodyInput });
     const data = body.data || {};
-    state.lastAsk = { run_id: data.run_id, source_id: source.id };
+    state.lastAsk = { run_id: data.run_id, source_id: sourceId };
 
     $("answer-panel").hidden = false;
-    setText("reply-text", data.answer_text || "(no text)");
-    setText("run-meta", `run ${data.run_id} · latency ${data.latency_ms ?? "?"}ms${data.fallback_mode ? " · fallback mode" : ""}`);
+    $("reply-text").textContent = data.answer_text || "(Analysis Complete)";
+    $("run-meta").textContent = `Run ID: ${data.run_id} · Latency: ${data.latency_ms ?? "?"}ms${data.fallback_mode ? " · Fallback Mode" : " · Gemini LLM Engine"}`;
 
-    // sheet
-    const cols = data?.query_result?.columns;
+    // Advisor Alert Banner
+    if (data.advisor) {
+      $("advisor-banner").hidden = false;
+      $("advisor-headline-text").textContent = data.advisor.headline || "Executive Intelligence Advisory";
+      $("advisor-text").innerHTML = (data.advisor.insights || []).map(ins => `<p style="margin-top: 4px;">${ins}</p>`).join("");
+    } else {
+      $("advisor-banner").hidden = true;
+    }
+
+    // Results Table & Chart State
+    const cols = data?.query_result?.columns || [];
     const rows = data?.query_result?.rows || [];
-    renderData(Array.isArray(cols) ? cols : [], rows);
+    state.currentCols = Array.isArray(cols) ? cols : [];
+    state.currentRows = rows;
+    state.currentSpec = data.chart_spec;
+    state.selectedChartType = data?.chart_spec?.type || "bar";
 
-    // chart
-    renderChart(data.chart_spec);
+    renderData(state.currentCols, state.currentRows);
+    updateChartTypeButtons(state.selectedChartType);
+    renderChart(state.selectedChartType, state.currentSpec, state.currentRows, state.currentCols);
 
-    // fallback badge
     $("fallback-badge").hidden = !data.fallback_mode;
+
+    addAuditEntry(q, `${data.latency_ms ?? "?"}ms`, data.fallback_mode);
   } catch (err) {
-    setText("ask-error", err.message);
+    errBox.textContent = err.message; errBox.hidden = false;
     $("answer-panel").hidden = true;
   } finally {
-    btn.disabled = false;
-    setText("ask-status", "");
+    btn.disabled = false; status.hidden = true;
   }
 }
 
 $("ask-btn").addEventListener("click", submitQuestion);
 $("question").addEventListener("keydown", (e) => { if (e.key === "Enter") submitQuestion(); });
 
+// ---------- Data Table Renderer ----------
 function renderData(columns, rows) {
   const thead = $("data-head");
   const tbody = $("data-body");
   const table = $("data-table");
   const placeholder = $("table-placeholder");
-  thead.innerHTML = "";
-  tbody.innerHTML = "";
+  thead.innerHTML = ""; tbody.innerHTML = "";
 
-  if (!columns.length) { table.hidden = true; placeholder.hidden = false; return; }
-  placeholder.hidden = true;
-  table.hidden = false;
+  if (!columns.length || !rows.length) { table.hidden = true; placeholder.hidden = false; return; }
+  placeholder.hidden = true; table.hidden = false;
 
   const tr = document.createElement("tr");
   for (const c of columns) {
@@ -288,61 +429,108 @@ function renderData(columns, rows) {
     }
     tbody.appendChild(tr);
   }
-  if (rows.length > 200) {
-    const info = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = columns.length;
-    td.className = "meta";
-    td.textContent = `Showing 200 of ${rows.length} rows. Export for the full set.`;
-    info.appendChild(td);
-    tbody.appendChild(info);
-  }
 }
 
-// ---------- chart ----------
-function renderChart(spec) {
+// ---------- Chart Type Selector Buttons ----------
+function updateChartTypeButtons(activeType) {
+  document.querySelectorAll(".chart-type-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-chart") === activeType);
+  });
+}
+
+document.querySelectorAll(".chart-type-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const cType = btn.getAttribute("data-chart");
+    if (cType && state.currentRows.length) {
+      state.selectedChartType = cType;
+      updateChartTypeButtons(cType);
+      renderChart(cType, state.currentSpec, state.currentRows, state.currentCols);
+    }
+  });
+});
+
+// ---------- Multi-Type Chart Renderer ----------
+let chartInstance = null;
+
+function renderChart(chartType, spec, rows = [], columns = []) {
   const canvas = $("chart-canvas");
   const placeholder = $("chart-placeholder");
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (!spec || !spec.type) {
-    canvas.hidden = true;
-    placeholder.hidden = false;
+
+  if (!rows.length) {
+    canvas.hidden = true; placeholder.hidden = false;
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
     return;
   }
-  canvas.hidden = false;
-  placeholder.hidden = true;
+  canvas.hidden = false; placeholder.hidden = true;
 
-  // Baseline bar/area/line without a charting library.
-  const chart = JSON.stringify(spec).slice(0, 140);
-  ctx.fillStyle = "#e8eaf0";
-  ctx.fillText(`Chart ${spec.type} · ${chart}`, 16, 24);
-  ctx.strokeStyle = "#2b3245";
-  ctx.strokeRect(16, 36, canvas.width - 32, canvas.height - 52);
-  ctx.fillStyle = "#9aa3b2";
-  ctx.fillText("Chart canvas: wire backend chart spec or plug a renderer.", 24, 66);
-}
+  const enc = spec?.encoding || {};
+  const xCol = enc.x || (columns[0] || "category");
+  const yCol = enc.y || (columns[1] || "value");
 
-// ---------- export ----------
-async function doExport(fmt) {
-  if (!state.lastAsk?.run_id) { alert("Run a question first."); return; }
-  const wrap = $("export-link-wrap");
-  wrap.textContent = "Preparing…";
-  try {
-    const input = header("/api/export", "POST", { query_run_id: state.lastAsk.run_id, format: fmt });
-    const body = await api(input);
-    const data = body.data || {};
-    if (data.url) wrap.innerHTML = `Saved · expires ${data.expires_at || "soon"} · <a class="link" href="${data.url}" target="_blank">download</a>`;
-    else wrap.textContent = "No export URL returned.";
-  } catch (err) {
-    wrap.textContent = err.message;
+  const labels = rows.map(r => String(r[xCol] ?? ""));
+  const dataVals = rows.map(r => typeof r[yCol] === "number" ? r[yCol] : (parseFloat(r[yCol]) || 0));
+
+  const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4", "#ec4899", "#6366f1", "#14b8a6", "#f97316"];
+
+  if (window.Chart) {
+    if (chartInstance) chartInstance.destroy();
+
+    const isPieOrDoughnut = ["doughnut", "pie", "polarArea"].includes(chartType);
+
+    chartInstance = new window.Chart(canvas, {
+      type: chartType,
+      data: {
+        labels: labels,
+        datasets: [{
+          label: spec?.title || `${yCol} by ${xCol}`,
+          data: dataVals,
+          backgroundColor: isPieOrDoughnut ? colors.slice(0, labels.length) : (chartType === "line" ? "rgba(59, 130, 246, 0.2)" : colors),
+          borderColor: chartType === "line" ? "#3b82f6" : "transparent",
+          borderWidth: chartType === "line" ? 3 : 0,
+          tension: chartType === "line" ? 0.38 : 0,
+          fill: chartType === "line",
+          borderRadius: isPieOrDoughnut ? 0 : 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: isPieOrDoughnut, labels: { color: "#94a3b8", font: { family: "Inter" } } },
+          title: { display: true, text: spec?.title || `Analytics (${chartType.toUpperCase()})`, color: "#f8fafc", font: { family: "Inter", size: 14 } }
+        },
+        scales: isPieOrDoughnut ? {} : {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255, 255, 255, 0.05)" } },
+          y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255, 255, 255, 0.05)" } }
+        }
+      }
+    });
   }
 }
-$("export-csv").addEventListener("click", () => doExport("csv"));
-$("export-md").addEventListener("click", () => doExport("md"));
 
-// ---------- init ----------
+// ---------- Audit Entry Generator ----------
+function addAuditEntry(q, latency, isFallback) {
+  const tbody = $("audit-history-body");
+  if (!tbody) return;
+  const tr = document.createElement("tr");
+  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  tr.innerHTML = `
+    <td>${timeStr}</td>
+    <td>${q}</td>
+    <td>${latency}</td>
+    <td>${isFallback ? '<span class="badge">Fallback Engine</span>' : '<span class="safe-badge">DuckDB Live SQL</span>'}</td>
+    <td><button class="ghost small">👍 Verified</button></td>
+  `;
+  tbody.insertBefore(tr, tbody.firstChild);
+}
+
+// ---------- Language Toggle Handlers ----------
+$("lang-en").addEventListener("click", () => applyLanguage("en"));
+$("lang-hi").addEventListener("click", () => applyLanguage("hi"));
+
+// ---------- Init ----------
 (function init() {
+  applyLanguage(state.lang);
   if (state.token) viewer();
-  else showAuth();
-});
+  else showAuth("login");
+})();

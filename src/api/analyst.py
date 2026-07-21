@@ -1,6 +1,7 @@
 """Analyst routes: upload, ask, export."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -35,7 +36,7 @@ def _export_dir() -> Path:
 @router.post("/upload", response_model=None)
 def upload_csv(
     file: UploadFile = File(...),
-    session_token: str = Form(...),
+    session_token: str = Form("default_session"),
     session: Session = Depends(get_session),
 ) -> dict:
     init_db()
@@ -48,21 +49,23 @@ def upload_csv(
     if len(data) > 100 * 1024 * 1024:
         raise api_error("too_large", "File too large. Max 100MB.", 422)
     parsed = ingest_file_bytes(data, file.filename)
+    upload_dir = Path("data/uploads")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    saved_path = upload_dir / f"{parsed['filename']}"
+    saved_path.write_bytes(data)
+
     upload = Upload(
         session_id=session_token,
         filename=parsed["filename"],
-        schema_json=str(parsed["schema"]),
+        schema_json=json.dumps(parsed["schema"]),
         rows=parsed["rows"],
+        storage_path=str(saved_path.resolve()),
     )
     session.add(upload)
     session.flush()
     filename = parsed["filename"]
     metadata_json = (
-        '{"rows": '
-        + str(parsed["rows"])
-        + ', "filename": "'
-        + filename.replace('"', '\\"')
-        + '"}'
+        '{"filename": "' + filename + '", "rows": ' + str(parsed["rows"]) + '}'
     )
     session.add(
         AuditLog(
@@ -75,11 +78,70 @@ def upload_csv(
     return ok(UploadResponse(upload_id=upload.id, **parsed).model_dump())
 
 
+@router.get("/uploads", response_model=None)
+def list_uploads(session: Session = Depends(get_session)) -> dict:
+    init_db()
+    uploads = session.query(Upload).order_by(Upload.created_at.desc()).all()
+    items = []
+    for u in uploads:
+        import json, ast
+        schema = []
+        if u.schema_json:
+            try:
+                schema = json.loads(u.schema_json)
+            except Exception:
+                try:
+                    schema = ast.literal_eval(u.schema_json)
+                except Exception:
+                    schema = []
+        items.append({
+            "upload_id": u.id,
+            "filename": u.filename,
+            "rows": u.rows,
+            "schema": schema,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        })
+    return ok({"items": items, "count": len(items)})
+
+
+@router.delete("/uploads/{upload_id}", response_model=None)
+def delete_upload(upload_id: str, session: Session = Depends(get_session)) -> dict:
+    init_db()
+    u = session.query(Upload).filter(Upload.id == upload_id).first()
+    if not u:
+        raise api_error("not_found", f"Upload {upload_id} not found", 404)
+    
+    if u.storage_path and Path(u.storage_path).exists():
+        try:
+            Path(u.storage_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+            
+    session.delete(u)
+    session.commit()
+    return ok({"message": f"Upload {upload_id} deleted successfully"})
+
+
 @router.post("/ask", response_model=None)
 def ask(req: AskRequest, session: Session = Depends(get_session)) -> dict:
     init_db()
     if not req.question or not req.question.strip():
         raise api_error("empty_question", "Question cannot be empty.", 422)
+
+    active_schema = []
+    try:
+        source_upload_id = req.source_id.replace("csv_", "") if req.source_id else None
+        upload_record = session.get(Upload, source_upload_id) if source_upload_id else None
+        if not upload_record:
+            upload_record = session.query(Upload).order_by(Upload.created_at.desc()).first()
+        if upload_record and upload_record.schema_json:
+            import ast, json
+            try:
+                active_schema = json.loads(upload_record.schema_json.replace("'", '"'))
+            except Exception:
+                active_schema = ast.literal_eval(upload_record.schema_json)
+    except Exception:
+        active_schema = []
 
     start = __import__("time").perf_counter()
     result = run_analyst(
@@ -87,7 +149,7 @@ def ask(req: AskRequest, session: Session = Depends(get_session)) -> dict:
         session_token=req.session_token,
         source_id=req.source_id,
         user_message=req.question,
-        schema=[],
+        schema=active_schema,
     )
     latency = int((__import__("time").perf_counter() - start) * 1000)
 

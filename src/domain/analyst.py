@@ -33,8 +33,8 @@ class SessionResponse(BaseModel):
 
 
 class UploadRequest(BaseModel):
-    session_token: str
-    user_id: str
+    session_token: str = "default_session"
+    user_id: str = "local"
     file_name: str = Field(..., max_length=255)
     file_data: bytes
 
@@ -47,18 +47,18 @@ class UploadResponse(BaseModel):
 
 
 class AskRequest(BaseModel):
-    session_token: str
-    source_id: str
+    session_token: str = "default_session"
+    source_id: str = "default_source"
     question: str
-    user_id: str
+    user_id: str = "local"
 
 
 class AskResponse(BaseModel):
     run_id: str
     answer_text: str | None = None
-    query_result: list[dict] | None = None
+    query_result: dict | list | None = None
     chart_spec: dict | None = None
-    fallback_mode: bool | None = False
+    fallback_mode: bool = False
     latency_ms: int | None = None
     status: str | None = "completed"
 

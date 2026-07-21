@@ -1,0 +1,2 @@
+question,query
+"Top 5","{\"columns\": [\"category\", \"count\"], \"rows\": [{\"category\": \"Region North\", \"count\": 142}, {\"category\": \"Region South\", \"count\": 98}, {\"category\": \"Region East\", \"count\": 76}, {\"category\": \"Region West\", \"count\": 54}, {\"category\": \"Central HQ\", \"count\": 31}], \"timed_out\": false}"

@@ -177,7 +177,9 @@ def run_analyst(
 
 
 def _local_fallback_answer(state: AnalystState) -> dict:
+    from src.graph.nodes import execute_read_only
     from src.llm.fallback_engine import answer_fallback
 
-    fallback = answer_fallback(state.get("user_message", ""), state.get("query_result"))
-    return {**state, **fallback, "error": None}
+    exec_state = execute_read_only(state)
+    fallback = answer_fallback(exec_state.get("user_message", ""), exec_state.get("query_result"))
+    return {**exec_state, **fallback, "error": None}
