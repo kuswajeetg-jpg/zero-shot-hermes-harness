@@ -1,0 +1,29 @@
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.venv/
+
+# Node / frontend
+node_modules/
+.next/
+dist/
+build/
+
+# DB
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Logs / OS
+*.log
+.DS_Store

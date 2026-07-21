@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zero-Shot Agent — Analyst</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="shell">
+
+    <!-- AUTH -->
+    <section id="auth-view" class="view">
+      <div class="auth-card">
+        <h1>Analyst login</h1>
+        <p class="hint">Sign in to start asking questions over your data.</p>
+
+        <form id="auth-form" novalidate>
+          <label for="auth-email">Email</label>
+          <input id="auth-email" type="email" autocomplete="email" placeholder="you@policedata.local" />
+
+          <label for="auth-password">Password</label>
+          <input id="auth-password" type="password" autocomplete="current-password" />
+
+          <div id="auth-error" class="error" hidden></div>
+          <button id="auth-submit" type="submit">Login</button>
+          <button id="auth-toggle" class="ghost" type="button">Create account</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ANALYSE -->
+    <section id="analyse-view" class="view" hidden>
+      <header class="topbar">
+        <div>
+          <h1>UP Police Analyst</h1>
+          <div id="subheader" class="subheader">
+            <span id="user-email" class="muted"></span>
+            <span id="fallback-badge" class="badge fallback-stub" hidden>fallback mode</span>
+          </div>
+        </div>
+        <div class="right">
+          <button id="logout-btn" class="ghost small">Logout</button>
+        </div>
+      </header>
+
+      <div class="grid">
+        <!-- LEFT -->
+        <div class="col">
+          <div class="card">
+            <h2>Source</h2>
+            <div id="source-strip" class="source-strip"></div>
+
+            <label class="upload-label">
+              Upload CSV
+              <input id="file-input" type="file" accept=".csv,text/csv" hidden />
+            </label>
+            <button id="upload-trigger" class="secondary">Choose file</button>
+            <div id="upload-status" class="status" hidden></div>
+            <div id="upload-error" class="error" hidden></div>
+          </div>
+
+          <div class="card">
+            <h2>Schema</h2>
+            <div id="schema-empty" class="hint">Upload a CSV or select an ICP-local source first.</div>
+            <table id="schema-table" class="schema-table" hidden>
+              <thead>
+                <tr><th>Column</th><th>Type</th><th>PII</th></tr>
+              </thead>
+              <tbody id="schema-body"></tbody>
+            </table>
+            <div id="schema-meta" class="meta"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT -->
+        <div class="col wide">
+          <div class="card">
+            <label for="question" class="ask-label">Ask a question</label>
+            <div class="ask-row">
+              <input id="question" type="text" placeholder="e.g. incidents by district last 30 days" />
+              <button id="ask-btn">Ask</button>
+            </div>
+            <div id="ask-error" class="error inline" hidden></div>
+            <div id="ask-status" class="status" hidden></div>
+          </div>
+
+          <div id="answer-panel" class="card answer-panel" hidden>
+            <div class="answer-header">
+              <h2>Answer</h2>
+              <div class="answer-actions">
+                <button id="export-csv" class="ghost small">Export CSV</button>
+                <button id="export-md" class="ghost small">Export Markdown</button>
+              </div>
+            </div>
+            <div id="reply-text" class="reply-text"></div>
+
+            <h3>Result</h3>
+            <div id="table-wrap" class="table-wrap">
+              <div id="table-placeholder" class="hint">Run a question to see a table.</div>
+              <table id="data-table" class="data-table" hidden>
+                <thead id="data-head"></thead>
+                <tbody id="data-body"></tbody>
+              </table>
+            </div>
+
+            <h3>Chart</h3>
+            <div class="chart-wrap">
+              <canvas id="chart-canvas" width="760" height="280"></canvas>
+              <div id="chart-placeholder" class="hint inline">Chart placeholder — no chart spec yet.</div>
+            </div>
+
+            <div class="row meta">
+              <span id="run-meta"></span>
+              <span id="export-link-wrap"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <span>API docs at <a href="/docs">/docs</a> · health at <a href="/health">/health</a></span>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
