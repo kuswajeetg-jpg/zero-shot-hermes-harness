@@ -65,15 +65,24 @@ Analysts currently hand off CSVs to tech teams or write SQL manually. Turnaround
 - **How the user tests it (handoff seed):**
   - IT registers source → user selects it → asks “Show last 7 days incidents” → answer from DB. Upload two CSVs, ask “Compare totals.”
 
-### Phase 3 — Advisor Patterns + Performance Hardening
+### Phase 3 — Advisor Patterns + Performance Hardening + Synthesis Layers
 
-- **Goal:** Trend detection, anomaly surfacing, spend guardrails, timeout policy, query-cache eviction, monitoring alerts.
+- **Goal:** Trend detection, anomaly surfacing, spend guardrails, timeout policy, query-cache eviction, monitoring alerts, plus clean NL interpretation, chart metadata, and answer synthesis.
 - **Independent slices (parallel build units):**
   - `slice-a` (backend) — advisor node: trend, anomaly, alert rules; deps: none
   - `slice-b` (backend) — query timeout policy, cache eviction, prompt compression, daily token budgets, alert hooks; deps: none
+  - `slice-c` (backend) — read-only SQL generator from execution plan; chart metadata recommender; answer synthesis with advisory embedding; deps: slice-a
 - **Key surfaces / files:**
-  - `slice-a` — `src/graph/nodes.py`, `src/prompts/advisor.md`
+  - `slice-a` — `src/graph/nodes.py`, `src/prompts/advisor.md`, `src/domain/advisor.py`
   - `slice-b` — `src/llm/prompt_compressor.py`, `src/api/routes.py`
+  - `slice-c` — `src/graph/sql_generator.py`, `src/prompts/sql_generator.md`, `src/graph/chart.py`, `src/prompts/chart.md`, `src/graph/nodes.py`, `src/prompts/answer.md`
 - **Gate command:** `uv run pytest tests/integration -q`
 - **How the user tests it (handoff seed):**
   - Ask “Detect weekly spikes.” → advisor card shows markers. Repeated question hits cache. Soft token warning appears.
+  - Upload CSV → ask “Top attack vectors” → SQL generator returns safe SELECT → execution returns rows → chart metadata recommends bar chart → answer node writes executive summary with advisory notes.
+
+### Phase 4 — Production Hardening + Deployment
+
+- **Goal:** K8s/Helm deployment, PostgreSQL metadata DB migration, Windows auth for MsSQL, end-to-end integration tests, production observability.
+- **How the user tests it (handoff seed):**
+  - Deploy Helm chart → login via SSO → connect IT-managed MsSQL source → ask NL question → receive executive-ready answer with chart, advisor insights, and export.
