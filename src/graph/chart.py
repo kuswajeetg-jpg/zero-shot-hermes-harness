@@ -66,10 +66,14 @@ def recommend_chart(
 
     if nrows == 1:
         return {
-            "recommended": False,
-            "chart_type": "none",
-            "title": "Result",
-            "encoding": {"columns": cols[0], "values": ", ".join(cols[1:] or [cols[0]])},
+            "recommended": True,
+            "chart_type": "bar",
+            "title": "Single result context",
+            "encoding": {
+                "x_axis": cols[0],
+                "y_axis": numeric_cols[0] if numeric_cols else (cols[1] if len(cols) > 1 else cols[0]),
+                "group_by": None,
+            },
             "color_theme": "amber",
         }
 

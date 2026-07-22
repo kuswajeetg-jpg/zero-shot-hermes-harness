@@ -23,6 +23,7 @@ def generate_sql(
     question: str,
     schema: list[dict[str, Any]],
     allowed_columns: list[str] | None = None,
+    allowed_fields: list[str] | None = None,
     dialect: str = "duckdb",
     max_limit: int = 5000,
 ) -> dict[str, Any]:
@@ -104,6 +105,13 @@ def generate_sql(
         order_clause = ""
 
     sql = f"SELECT {select_clause} FROM {table_name}{where_clause}{group_clause}{order_clause} LIMIT {limit};"
+
+    # Post-query frontend field allowlist projection
+    if allowed_fields:
+        safe_cols = [c for c in allowed_fields if c in allowlist]
+        if safe_cols:
+            projected = ", ".join(f'"{c}"' for c in safe_cols)
+            sql = f"SELECT {projected} FROM dataset LIMIT {limit};"
 
     if _FORBIDDEN.search(sql) or _MULTI_STATEMENT.search(sql) or not _SELECT_ONLY.search(sql):
         raise SQLGenerationError("Generated SQL violates safety constraints.")

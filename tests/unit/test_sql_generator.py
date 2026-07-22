@@ -2,9 +2,6 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
-
-from src.api import create_app
 from src.graph.sql_generator import SQLGenerationError, generate_sql
 
 
@@ -107,3 +104,36 @@ def test_forbidden_keywords_rejected():
     }
     with pytest.raises(SQLGenerationError):
         generate_sql(plan, "bad", schema, allowed_columns=["x"])
+
+
+def test_generate_allowed_fields_projects_safe_columns():
+    schema = [
+        {"name": "x", "type": "str", "pii": False},
+        {"name": "y", "type": "int", "pii": False},
+        {"name": "z", "type": "str", "pii": True},
+    ]
+    plan = {
+        "intent": "custom_query",
+        "target_column": "y",
+        "group_by": None,
+        "aggregation": "NONE",
+        "filters": [],
+        "sort_order": "NONE",
+        "limit": 50,
+        "confidence": 0.6,
+        "reasoning": "...",
+    }
+    sql = generate_sql(plan, "only these columns", schema, allowed_columns=["x", "y"], allowed_fields=["y"])["sql"]
+    assert 'SELECT "y" FROM dataset LIMIT 50;' == sql
+
+
+def test_generate_allowed_fields_empty_keeps_full_projection():
+    schema = [
+        {"name": "x", "type": "str", "pii": False},
+        {"name": "y", "type": "int", "pii": False},
+    ]
+    plan = {"intent": "custom_query", "target_column": "y", "group_by": None, "aggregation": "SUM", "filters": [], "sort_order": "NONE", "limit": 5, "confidence": 0.9, "reasoning": "..."}
+    sql = generate_sql(plan, "summarize", schema, allowed_columns=["x", "y"], allowed_fields=[])["sql"]
+    assert "SUM(\"y\")" in sql
+    # With empty allowed_fields, projection stays plan-driven; no extra unrelated columns are injected.
+    assert '"x"' not in sql

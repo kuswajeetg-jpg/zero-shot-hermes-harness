@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 import time
+from datetime import date, datetime
+from decimal import Decimal
 
 from src.db.models import QueryRun
 from src.db.session import create_db_session
@@ -16,6 +18,12 @@ from src.llm.prompt_compressor import compress_history
 from src.observability.alerts import alert
 from src.observability.events import get_logger, log_span
 
+
+def _json_safe(obj):
+    try:
+        return json.dumps(obj, default=lambda o: o.isoformat() if isinstance(o, (datetime, date)) else (float(o) if isinstance(o, Decimal) else str(o)), sort_keys=True)
+    except Exception:
+        return json.dumps({"raw": str(obj)})
 
 def run_analyst(
     user_id: str,
@@ -156,8 +164,8 @@ def run_analyst(
             qrun.context_summary = history_text[:400]
             qrun.fallback_mode = fallback_mode
             qrun.latency_ms = latency_ms
-            qrun.query_normalized = json.dumps(query_result) if query_result is not None else ""
-            qrun.chart_spec = json.dumps(chart_spec) if chart_spec is not None else ""
+            qrun.query_normalized = _json_safe(query_result) if query_result is not None else ""
+            qrun.chart_spec = _json_safe(chart_spec) if chart_spec is not None else ""
             session.add(qrun)
             session.commit()
 

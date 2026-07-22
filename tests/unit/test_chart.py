@@ -57,7 +57,9 @@ def test_correlation_numeric_returns_scatter():
     assert spec["chart_type"] == "scatter"
 
 
-def test_scalar_single_value_returns_none():
+def test_scalar_single_value_returns_context_bar():
     spec = recommend_chart("Total incidents", ["total"], [{"total": 1420}])
-    assert spec["chart_type"] == "none"
-    assert spec["recommended"] is False
+    assert spec["chart_type"] == "bar"
+    assert spec["recommended"] is True
+    assert spec["encoding"]["x_axis"] == "total"
+    assert spec["encoding"]["y_axis"] == "total"

@@ -52,6 +52,8 @@ class AskRequest(BaseModel):
     source_id: str = "default_source"
     question: str
     user_id: str = "local"
+    lang: str = "en"
+    allowed_fields: list[str] | None = None
 
 
 class AskResponse(BaseModel):

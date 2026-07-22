@@ -15,6 +15,8 @@ const state = {
   currentCols: [],
   currentSpec: null,
   selectedChartType: "bar",
+  // field selection state
+  allowedFields: null,
 };
 
 // ---------- Bilingual Dictionary ----------
@@ -74,6 +76,21 @@ const dict = {
     noSources: "अभी तक कोई CSV डेटासेट अपलोड नहीं हुआ है।",
     exportCsv: "CSV डाउनलोड",
     exportMd: "रिपोर्ट डाउनलोड",
+    answerColumnAnalysis: "कॉलम विश्लेषण:",
+    answerNumericSummary: "संख्या सारांश:",
+    answerCategoryDistribution: "श्रेणी वितरण:",
+    answerPublished: "प्रकट हुआ",
+    answerTotal: "कुल",
+    answerAverage: "औसत",
+    answerMin: "न्यूनतम",
+    answerMax: "अधिकतम",
+    answerPeakRecord: "शीर्ष रिकॉर्ड",
+    chartDefaultTitle: "विश्लेषण",
+    concentrationAlert: "केंद्रीकरण अलर्ट",
+    accountsFor: "कुल मॉल के अनुसार",
+    criticalVolume: "महत्वपूर्ण आयतन",
+    spikeDetected: "स्पाइक पाया गया",
+    approachesDataSetBaseline: "डेटासेट बेसलाइन तक पहुंचता है या उससे अधिक",
   }
 };
 
@@ -113,6 +130,44 @@ function applyLanguage(lang) {
 
   $("lang-en").classList.toggle("active", lang === "en");
   $("lang-hi").classList.toggle("active", lang === "hi");
+
+  if (state.lastAsk && state.currentRows.length) {
+    rerenderAnswerPanel(state.lastAsk.question || $("question").value, lang);
+  }
+}
+
+function rerenderAnswerPanel(question, lang) {
+  const t = dict[lang] || dict.en;
+  const rows = state.currentRows;
+  const cols = state.currentCols;
+  if (!rows.length || !cols.length) return;
+
+  const selectedType = state.selectedChartType || "bar";
+  // ensure chart header contains axis controls
+  ensureChartAxisSelectors();
+  populateChartAxisSelectors(cols);
+
+  const spec = state.currentSpec || { chart_type: selectedType, encoding: {} };
+  const xSel = $("chart-x-axis");
+  const ySel = $("chart-y-axis");
+
+  // override encoding from selectors when available
+  const effectiveSpec = { ...spec };
+  if (xSel && ySel && xSel.value && ySel.value) {
+    effectiveSpec.encoding = effectiveSpec.encoding || {};
+    effectiveSpec.encoding.x_axis = effectiveSpec.encoding.x_axis || xSel.value;
+    effectiveSpec.encoding.y_axis = effectiveSpec.encoding.y_axis || ySel.value;
+  } else {
+    effectiveSpec.encoding = effectiveSpec.encoding || {};
+    if (!effectiveSpec.encoding.x_axis && cols[0]) effectiveSpec.encoding.x_axis = cols[0];
+    if (!effectiveSpec.encoding.y_axis && cols[1]) effectiveSpec.encoding.y_axis = cols[1];
+  }
+
+  const text = _buildAnswerText(question, rows, cols, t);
+  $("reply-text").textContent = text;
+  renderData(cols, rows);
+  updateChartTypeButtons(selectedType);
+  renderChart(selectedType, effectiveSpec, rows, cols);
 }
 
 // ---------- Tab Switcher ----------
@@ -270,7 +325,6 @@ function selectSource(source) {
   state.activeSource = source;
   renderSourceStrip(state.sources);
   renderSchema(source.schema || [], source.rows || 0);
-
   // Update suggested questions
   if (source.suggested_questions && source.suggested_questions.length > 0) {
     const qInput = $("question");
@@ -314,6 +368,45 @@ function renderSchema(schema, totalRows) {
   });
 
   meta.textContent = `${schema.length} Columns · ${totalRows.toLocaleString()} Total Records`;
+}
+
+// ---------- Post-upload field selector ----------
+function renderFieldSelector(schema) {
+  const panel = $("field-selector");
+  const box = $("field-checkboxes");
+  if (!panel || !box) return;
+  box.innerHTML = "";
+  if (!schema || !schema.length) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  schema.forEach((col) => {
+    const id = `field-${col.name}`;
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "8px";
+    label.style.marginBottom = "6px";
+    label.innerHTML = `
+      <input type="checkbox" class="field-check" value="${col.name}" checked style="accent-color: #3b82f6;" />
+      <span style="font-size: 0.9rem;">${col.name} <span style="opacity: 0.6; font-size: 0.75rem;">(${col.type || "text"})</span></span>
+    `;
+    box.appendChild(label);
+  });
+}
+
+function selectedFieldsFromUI() {
+  const checks = document.querySelectorAll(".field-check:checked");
+  const vals = Array.from(checks).map((el) => el.value);
+  return vals.length ? vals : null;
+}
+
+function applyAllowedFields(fields) {
+  if (!fields) return;
+  document.querySelectorAll(".field-check").forEach((el) => {
+    el.checked = fields.includes(el.value);
+  });
 }
 
 function updateKpis() {
@@ -368,6 +461,9 @@ async function submitQuestion() {
 
   const activeSrc = state.activeSource;
   const sourceId = activeSrc ? `csv_${activeSrc.upload_id}` : "csv_latest";
+  const allowed = selectedFieldsFromUI();
+  // temporarily store allowed for answer rendering fallbacks
+  state.pendingAllowedFields = allowed;
 
   const btn = $("ask-btn");
   const status = $("ask-status");
@@ -395,14 +491,33 @@ async function submitQuestion() {
     // Results Table & Chart State
     const cols = data?.query_result?.columns || [];
     const rows = data?.query_result?.rows || [];
-    state.currentCols = Array.isArray(cols) ? cols : [];
-    state.currentRows = rows;
+    
+    // Apply allowed fields post-filter if applicable
+    let effectiveCols = Array.isArray(cols) ? cols : [];
+    let effectiveRows = Array.isArray(rows) ? rows : [];
+    if (allowed && allowed.length && effectiveRows.length) {
+      const allowedSet = new Set(allowed);
+      effectiveCols = effectiveCols.filter(c => allowedSet.has(c));
+      effectiveRows = effectiveRows.map(r => {
+        const out = {};
+        for (const c of effectiveCols) out[c] = r[c];
+        return out;
+      });
+    }
+    
+    state.currentCols = effectiveCols;
+    state.currentRows = effectiveRows;
     state.currentSpec = data.chart_spec;
     state.selectedChartType = data?.chart_spec?.chart_type || data?.chart_spec?.type || "bar";
+    if (!state.currentCols.length && data?.query_result?.columns?.length) {
+      state.currentCols = data.query_result.columns;
+      state.currentRows = data.query_result.rows;
+    }
 
     renderData(state.currentCols, state.currentRows);
     updateChartTypeButtons(state.selectedChartType);
     renderChart(state.selectedChartType, state.currentSpec, state.currentRows, state.currentCols);
+    $("field-selector").hidden = true;
 
     $("fallback-badge").hidden = !data.fallback_mode;
 
@@ -450,84 +565,246 @@ function renderData(columns, rows) {
   }
 }
 
+function numberFormat(n) {
+  try { return Number(n).toLocaleString(); } catch { return String(n); }
+}
+
+function _buildAnswerText(question, rows, columns, t) {
+  const total = Array.isArray(rows) ? rows.length : 0;
+  const colCount = Array.isArray(columns) ? columns.length : 0;
+  let text = `"${question}" returned ${numberFormat(total)} record(s).\n\nThis dataset contains ${numberFormat(total)} record(s) across ${numberFormat(colCount)} column(s).\n\n`;
+  text += `${t.answerColumnAnalysis || "Column Analysis:"}\n`;
+
+  const sampleSize = Math.min(total, 50);
+  const sample = total ? rows.slice(0, sampleSize) : [];
+  const textCols = [];
+  const numericCols = [];
+  for (const c of columns) {
+    const values = sample.map(r => r[c]).filter(v => v !== null && v !== undefined && v !== "");
+    if (!values.length) {
+      text += `- ${c}: empty / no data\n`;
+      continue;
+    }
+    const numericValues = values.filter(v => !isNaN(Number(v)) && String(v).trim() !== "");
+    if (numericValues.length) {
+      numericCols.push(c);
+      const nums = numericValues.map(Number);
+      const unique = new Set(nums).size;
+      text += `- ${c}: numeric data, range ${numberFormat(Math.min(...nums))} to ${numberFormat(Math.max(...nums))}, `;
+      text += `average ${(nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2)}, ${unique} unique value(s)\n`;
+    } else {
+      textCols.push(c);
+      const unique = Array.from(new Set(values.map(String))).slice(0, 8);
+      text += `- ${c}: categorical with ${unique.length} unique value(s) — ${unique.join(", ")}\n`;
+    }
+  }
+
+  if (numericCols.length) {
+    text += `\n${t.answerNumericSummary || "Numeric Summary:"}\n`;
+    for (const c of numericCols.slice(0, 3)) {
+      const nums = sample.map(r => r[c]).filter(v => !isNaN(Number(v)) && String(v).trim() !== "").map(Number);
+      if (!nums.length) continue;
+      text += `- ${c}: total ${numberFormat(nums.reduce((a, b) => a + b, 0))}, average ${(nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2)}, min ${numberFormat(Math.min(...nums))}, max ${numberFormat(Math.max(...nums))}\n`;
+    }
+  }
+
+  if (textCols.length) {
+    text += `\n${t.answerCategoryDistribution || "Category Distribution:"}\n`;
+    for (const c of textCols.slice(0, 3)) {
+      const counts = {};
+      for (const r of sample) {
+        const v = String(r[c] ?? "");
+        if (v === "") continue;
+        counts[v] = (counts[v] || 0) + 1;
+      }
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      if (top.length) {
+        text += `- ${c} distribution: ` + top.map(([k, v]) => `${k} (${v})`).join("; ") + "\n";
+      }
+    }
+  }
+
+  const maxVal = Math.max(...Object.values(counts || {}), 0);
+  const metaCount = total > 0 ? total : (rows ? rows.length : 0);
+  const alerts = [];
+  for (const [c, ccounts] of Object.entries(counts || {})) {
+    const cMax = Math.max(...Object.values(ccounts), 0);
+    if (cMax && metaCount && cMax / metaCount >= 0.5) {
+      alerts.push(`${t.concentrationAlert || "Concentration Alert"}: ${c}='${Object.keys(ccounts).find(k => ccounts[k] === cMax)}' ${t.accountsFor || "accounts for"} ${(cMax/metaCount*100).toFixed(1)}% ${t.answerTotal || "of total count"}.`);
+    }
+  }
+  if (alerts.length) {
+    text += `\n**Advisory Notes**\n` + alerts.map(a => `📌 ${a}`).join("\n");
+  }
+
+  return text;
+}
+
 // ---------- Chart Type Selector Buttons ----------
+// row/column select controls
+function ensureChartAxisSelectors() {
+  if ($("chart-x-axis")) return;
+  const header = $("chart-header");
+  const wrap = document.createElement("div");
+  wrap.style.display = "flex";
+  wrap.style.gap = "8px";
+  wrap.style.alignItems = "center";
+  wrap.style.flexWrap = "wrap";
+  wrap.style.marginTop = "8px";
+  wrap.innerHTML = `
+    <select id="chart-x-axis" class="axis-select" style="background:#0b1220; color:#e2e8f0; border:1px solid #233045; padding:6px 8px; border-radius:6px;"></select>
+    <select id="chart-y-axis" class="axis-select" style="background:#0b1220; color:#e2e8f0; border:1px solid #233045; padding:6px 8px; border-radius:6px;"></select>
+    <button id="chart-render-btn" class="primary small">Render Chart</button>
+  `;
+  header?.parentNode?.insertBefore(wrap, header.nextSibling);
+
+  document.getElementById("chart-render-btn")?.addEventListener("click", () => {
+    const type = state.selectedChartType || "bar";
+    renderChart(type, state.currentSpec, state.currentRows, state.currentCols);
+  });
+
+  document.getElementById("chart-x-axis")?.addEventListener("change", () => document.getElementById("chart-render-btn")?.click());
+  document.getElementById("chart-y-axis")?.addEventListener("change", () => document.getElementById("chart-render-btn")?.click());
+}
+
+function populateChartAxisSelectors(columns) {
+  const x = $("chart-x-axis");
+  const y = $("chart-y-axis");
+  if (!x || !y) return;
+  x.innerHTML = "";
+  y.innerHTML = "";
+  const opts = columns.length ? columns : ["(none)"];
+  opts.forEach((c, i) => {
+    const ox = document.createElement("option");
+    ox.value = c; ox.textContent = c;
+    x.appendChild(ox);
+    const oy = document.createElement("option");
+    oy.value = c; oy.textContent = c;
+    y.appendChild(oy);
+  });
+  if (opts.length >= 2) y.selectedIndex = 1;
+}
+
+// chart type bar + extra types
 function updateChartTypeButtons(activeType) {
+  activeType = activeType || "bar";
+  const allowed = ["bar","line","doughnut","pie","polarArea","scatter","area","histogram","box","radar"];
+  if (!allowed.includes(activeType)) activeType = "bar";
+  const bar = document.getElementById("chart-type-bar");
+  if (bar && !state.chartBarInitialized) {
+    bar.innerHTML = `
+      <button class="chart-type-btn ${activeType==="bar"?"active":""}" data-chart="bar">📊 Bar</button>
+      <button class="chart-type-btn ${activeType==="line"?"active":""}" data-chart="line">📈 Line</button>
+      <button class="chart-type-btn ${activeType==="scatter"?"active":""}" data-chart="scatter">🔗 Scatter</button>
+      <button class="chart-type-btn ${activeType==="doughnut"?"active":""}" data-chart="doughnut">🍩 Doughnut</button>
+      <button class="chart-type-btn ${activeType==="pie"?"active":""}" data-chart="pie">🥧 Pie</button>
+      <button class="chart-type-btn ${activeType==="polarArea"?"active":""}" data-chart="polarArea">🎯 Polar</button>
+      <button class="chart-type-btn ${activeType==="area"?"active":""}" data-chart="area">📉 Area</button>
+      <button class="chart-type-btn ${activeType==="histogram"?"active":""}" data-chart="histogram">📊 Histogram</button>
+      <button class="chart-type-btn ${activeType==="box"?"active":""}" data-chart="box">📦 Box</button>
+      <button class="chart-type-btn ${activeType==="radar"?"active":""}" data-chart="radar">🕸️ Radar</button>
+    `;
+    state.chartBarInitialized = true;
+    bindChartTypeButtons();
+  }
   document.querySelectorAll(".chart-type-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-chart") === activeType);
   });
 }
 
-document.querySelectorAll(".chart-type-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const cType = btn.getAttribute("data-chart");
-    if (cType && state.currentRows.length) {
-      state.selectedChartType = cType;
-      updateChartTypeButtons(cType);
-      renderChart(cType, state.currentSpec, state.currentRows, state.currentCols);
-    }
+function bindChartTypeButtons() {
+  document.querySelectorAll(".chart-type-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cType = btn.getAttribute("data-chart");
+      if (cType && state.currentRows.length) {
+        state.selectedChartType = cType;
+        updateChartTypeButtons(cType);
+        renderChart(cType, state.currentSpec, state.currentRows, state.currentCols);
+      }
+    });
   });
-});
+}
 
 // ---------- Multi-Type Chart Renderer ----------
 let chartInstance = null;
 
 function renderChart(chartType, spec, rows = [], columns = []) {
+  const specType = spec?.chart_type || spec?.type || chartType;
   const canvas = $("chart-canvas");
   const placeholder = $("chart-placeholder");
 
-  if (!rows.length || chartType === "none") {
+  if (!rows.length || specType === "none") {
     canvas.hidden = true; placeholder.hidden = false;
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    placeholder.textContent = rows.length ? "Chart not recommended for this result." : "No chart specification generated for this query.";
     return;
   }
   canvas.hidden = false; placeholder.hidden = true;
 
-  const enc = spec?.encoding || {};
-  const xCol = enc.x_axis || enc.x || (columns[0] || "category");
-  const yCol = enc.y_axis || enc.y || (columns[1] || "value");
+  ensureChartAxisSelectors();
+  populateChartAxisSelectors(columns);
 
-  const properXCol = xCol.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  const properYCol = yCol.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const xSel = $("chart-x-axis");
+  const ySel = $("chart-y-axis");
+  const enc = spec?.encoding || {};
+  let xCol = enc.x_axis || enc.x || (xSel ? xSel.value : null) || (columns[0] || "category");
+  let yCol = enc.y_axis || enc.y || (ySel ? ySel.value : null) || (columns[1] || columns[0] || "value");
+
+  if (!columns.includes(xCol)) xCol = columns[0] || xCol;
+  if (!columns.includes(yCol)) yCol = columns.find(c => c !== xCol) || yCol;
+
+  const properXCol = String(xCol).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const properYCol = String(yCol).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
   const labels = rows.map(r => String(r[xCol] ?? ""));
-  const dataVals = rows.map(r => typeof r[yCol] === "number" ? r[yCol] : (parseFloat(r[yCol]) || 0));
+  const dataVals = rows.map(r => (typeof r[yCol] === "number" ? r[yCol] : (parseFloat(r[yCol]) || 0)));
 
   const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4", "#ec4899", "#6366f1", "#14b8a6", "#f97316"];
 
-  if (window.Chart) {
-    if (chartInstance) chartInstance.destroy();
-
-    const isPieOrDoughnut = ["doughnut", "pie", "polarArea"].includes(chartType);
-
-    chartInstance = new window.Chart(canvas, {
-      type: chartType,
-      data: {
-        labels: labels,
-        datasets: [{
-          label: spec?.title || `${properYCol} by ${properXCol}`,
-          data: dataVals,
-          backgroundColor: isPieOrDoughnut ? colors.slice(0, labels.length) : (chartType === "line" ? "rgba(59, 130, 246, 0.2)" : colors),
-          borderColor: chartType === "line" ? "#3b82f6" : "transparent",
-          borderWidth: chartType === "line" ? 3 : 0,
-          tension: chartType === "line" ? 0.38 : 0,
-          fill: chartType === "line",
-          borderRadius: isPieOrDoughnut ? 0 : 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: isPieOrDoughnut, labels: { color: "#94a3b8", font: { family: "Inter" } } },
-          title: { display: true, text: spec?.title || `Analytics (${chartType.toUpperCase()})`, color: "#f8fafc", font: { family: "Inter", size: 14 } }
-        },
-        scales: isPieOrDoughnut ? {} : {
-        x: { title: { display: true, text: properXCol, color: "#f8fafc" }, ticks: { color: "#94a3b8" }, grid: { color: "rgba(255, 255, 255, 0.05)" } },
-        y: { title: { display: true, text: properYCol, color: "#f8fafc" }, ticks: { color: "#94a3b8" }, grid: { color: "rgba(255, 255, 255, 0.05)" } }
-      }
-      }
-    });
+  if (!window.Chart) {
+    placeholder.hidden = false;
+    placeholder.textContent = "Chart engine unavailable.";
+    return;
   }
+  if (chartInstance) chartInstance.destroy();
+
+  const isPieOrDoughnut = ["doughnut","pie","polarArea"].includes(specType);
+  const allowAxisLabels = !isPieOrDoughnut;
+  const singular = rows.length === 1;
+
+  chartInstance = new window.Chart(canvas, {
+    type: singular && specType === "bar" ? "bar" : specType,
+    data: {
+      labels,
+      datasets: [{
+        label: spec?.title || `${properYCol} by ${properXCol}`,
+        data: dataVals,
+        backgroundColor: isPieOrDoughnut ? colors.slice(0, labels.length) : (specType === "line" ? "rgba(59, 130, 246, 0.2)" : colors),
+        borderColor: specType === "line" ? "#3b82f6" : "transparent",
+        borderWidth: specType === "line" ? 3 : 0,
+        tension: specType === "line" ? 0.38 : 0,
+        fill: specType === "line",
+        borderRadius: isPieOrDoughnut || singular ? 0 : 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: isPieOrDoughnut, labels: { color: "#94a3b8", font: { family: "Inter" } } },
+        title: { display: true, text: spec?.title || `Analytics (${specType.toUpperCase()})`, color: "#f8fafc", font: { family: "Inter", size: 14 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${properYCol}: ${Number(ctx.raw).toLocaleString()}`
+          }
+        }
+      },
+      scales: allowAxisLabels ? {
+        x: { title: { display: allowAxisLabels, text: properXCol, color: "#f8fafc" }, ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { title: { display: allowAxisLabels, text: properYCol, color: "#f8fafc" }, ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" } }
+      } : {}
+    }
+  });
 }
 
 // ---------- Audit Entry Generator ----------
