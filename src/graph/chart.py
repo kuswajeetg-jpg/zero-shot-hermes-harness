@@ -24,10 +24,21 @@ def _is_time_column(name: str) -> bool:
 
 
 def _infer_numeric_columns(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
+    forced = {c for c in columns if c.lower() in ("value", "count", "total", "sum", "avg", "average")}
     if not rows:
-        return [c for c in columns if c.lower().endswith("count") or c.lower().endswith("total") or c.lower() == "value"]
-    first = rows[0]
-    return [c for c in columns if isinstance(first.get(c), (int, float))]
+        return list(forced) or [c for c in columns if c.lower().endswith("count") or c.lower().endswith("total")]
+    
+    inferred = set()
+    for c in columns:
+        if c in forced:
+            inferred.add(c)
+            continue
+        for row in rows[:5]:
+            val = row.get(c)
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                inferred.add(c)
+                break
+    return [c for c in columns if c in inferred]
 
 
 def recommend_chart(
@@ -66,7 +77,8 @@ def recommend_chart(
     if "trend" in q or len(time_cols) >= 1:
         has_numeric = bool(numeric_cols)
         x = time_cols[0] if time_cols else cols[0]
-        y = numeric_cols[0] if has_numeric else (cols[1] if len(cols) > 1 else cols[0])
+        y_cand = [c for c in numeric_cols if c != x]
+        y = y_cand[0] if y_cand else (cols[1] if len(cols) > 1 else cols[0])
         return {
             "recommended": True,
             "chart_type": "line",
@@ -94,7 +106,8 @@ def recommend_chart(
         else:
             chart_type = "bar"
         x = cat_cols[0] if cat_cols else cols[0]
-        y = numeric_cols[0] if numeric_cols else "count"
+        y_cand = [c for c in numeric_cols if c != x]
+        y = y_cand[0] if y_cand else (numeric_cols[0] if numeric_cols else "count")
         return {
             "recommended": True,
             "chart_type": chart_type,
@@ -106,7 +119,8 @@ def recommend_chart(
     # categorical comparison
     if len(cat_cols) >= 2 or (len(cols) >= 2 and len(numeric_cols) >= 1):
         x = cat_cols[0] if cat_cols else cols[0]
-        y = numeric_cols[0] if numeric_cols else (cols[1] if len(cols) > 1 else cols[0])
+        y_cand = [c for c in numeric_cols if c != x]
+        y = y_cand[0] if y_cand else (numeric_cols[0] if numeric_cols else (cols[1] if len(cols) > 1 else cols[0]))
         return {
             "recommended": True,
             "chart_type": "bar",

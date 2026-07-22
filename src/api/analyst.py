@@ -27,6 +27,21 @@ from src.observability.events import get_logger
 router = APIRouter()
 
 
+def _generate_suggested_questions(schema: list[dict], filename: str) -> list[str]:
+    numeric_cols = [c["name"] for c in schema if c.get("type") in ("int", "float") and c.get("name")]
+    cat_cols = [c["name"] for c in schema if c.get("type") == "text" and c.get("name")]
+    
+    questions = [f"What are the top 10 records in {filename}?"]
+    if numeric_cols and cat_cols:
+        questions.append(f"Show the average {numeric_cols[0]} by {cat_cols[0]}")
+    if cat_cols:
+        questions.append(f"Show the total count by {cat_cols[0]}")
+    if numeric_cols:
+        questions.append(f"What is the total {numeric_cols[0]}?")
+        
+    return questions[:4]
+
+
 def _export_dir() -> Path:
     p = Path(get_settings().export_dir)
     p.mkdir(parents=True, exist_ok=True)
@@ -75,6 +90,7 @@ def upload_csv(
         )
     )
     session.commit()
+    parsed["suggested_questions"] = _generate_suggested_questions(parsed["schema"], parsed["filename"])
     return ok(UploadResponse(upload_id=upload.id, **parsed).model_dump())
 
 
@@ -100,6 +116,7 @@ def list_uploads(session: Session = Depends(get_session)) -> dict:
             "rows": u.rows,
             "schema": schema,
             "created_at": u.created_at.isoformat() if u.created_at else None,
+            "suggested_questions": _generate_suggested_questions(schema, u.filename)
         })
     return ok({"items": items, "count": len(items)})
 

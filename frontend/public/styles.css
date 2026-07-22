@@ -105,7 +105,7 @@ body {
 .kpi-sub { font-size: 0.78rem; color: var(--accent-emerald); font-weight: 500; }
 
 /* Grid Layout */
-.grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
+.grid { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px; }
 @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
 .col { display: flex; flex-direction: column; gap: 20px; }
 

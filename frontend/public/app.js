@@ -270,6 +270,24 @@ function selectSource(source) {
   state.activeSource = source;
   renderSourceStrip(state.sources);
   renderSchema(source.schema || [], source.rows || 0);
+
+  // Update suggested questions
+  if (source.suggested_questions && source.suggested_questions.length > 0) {
+    const qInput = $("question");
+    if (qInput) qInput.placeholder = `e.g. ${source.suggested_questions[0]}`;
+
+    const sampleList = $("sample-pills");
+    if (sampleList) {
+      sampleList.innerHTML = "";
+      source.suggested_questions.forEach(q => {
+        const btn = document.createElement("div");
+        btn.className = "sample-pill";
+        btn.textContent = `✨ ${q}`;
+        btn.onclick = () => quickAsk(q);
+        sampleList.appendChild(btn);
+      });
+    }
+  }
 }
 
 function renderSchema(schema, totalRows) {
@@ -380,7 +398,7 @@ async function submitQuestion() {
     state.currentCols = Array.isArray(cols) ? cols : [];
     state.currentRows = rows;
     state.currentSpec = data.chart_spec;
-    state.selectedChartType = data?.chart_spec?.type || "bar";
+    state.selectedChartType = data?.chart_spec?.chart_type || data?.chart_spec?.type || "bar";
 
     renderData(state.currentCols, state.currentRows);
     updateChartTypeButtons(state.selectedChartType);
@@ -414,7 +432,8 @@ function renderData(columns, rows) {
   const tr = document.createElement("tr");
   for (const c of columns) {
     const th = document.createElement("th");
-    th.textContent = c;
+    const properColName = c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    th.textContent = properColName;
     tr.appendChild(th);
   }
   thead.appendChild(tr);
@@ -456,7 +475,7 @@ function renderChart(chartType, spec, rows = [], columns = []) {
   const canvas = $("chart-canvas");
   const placeholder = $("chart-placeholder");
 
-  if (!rows.length) {
+  if (!rows.length || chartType === "none") {
     canvas.hidden = true; placeholder.hidden = false;
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
     return;
@@ -464,8 +483,11 @@ function renderChart(chartType, spec, rows = [], columns = []) {
   canvas.hidden = false; placeholder.hidden = true;
 
   const enc = spec?.encoding || {};
-  const xCol = enc.x || (columns[0] || "category");
-  const yCol = enc.y || (columns[1] || "value");
+  const xCol = enc.x_axis || enc.x || (columns[0] || "category");
+  const yCol = enc.y_axis || enc.y || (columns[1] || "value");
+
+  const properXCol = xCol.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const properYCol = yCol.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
   const labels = rows.map(r => String(r[xCol] ?? ""));
   const dataVals = rows.map(r => typeof r[yCol] === "number" ? r[yCol] : (parseFloat(r[yCol]) || 0));
@@ -482,7 +504,7 @@ function renderChart(chartType, spec, rows = [], columns = []) {
       data: {
         labels: labels,
         datasets: [{
-          label: spec?.title || `${yCol} by ${xCol}`,
+          label: spec?.title || `${properYCol} by ${properXCol}`,
           data: dataVals,
           backgroundColor: isPieOrDoughnut ? colors.slice(0, labels.length) : (chartType === "line" ? "rgba(59, 130, 246, 0.2)" : colors),
           borderColor: chartType === "line" ? "#3b82f6" : "transparent",
@@ -500,9 +522,9 @@ function renderChart(chartType, spec, rows = [], columns = []) {
           title: { display: true, text: spec?.title || `Analytics (${chartType.toUpperCase()})`, color: "#f8fafc", font: { family: "Inter", size: 14 } }
         },
         scales: isPieOrDoughnut ? {} : {
-          x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255, 255, 255, 0.05)" } },
-          y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255, 255, 255, 0.05)" } }
-        }
+        x: { title: { display: true, text: properXCol, color: "#f8fafc" }, ticks: { color: "#94a3b8" }, grid: { color: "rgba(255, 255, 255, 0.05)" } },
+        y: { title: { display: true, text: properYCol, color: "#f8fafc" }, ticks: { color: "#94a3b8" }, grid: { color: "rgba(255, 255, 255, 0.05)" } }
+      }
       }
     });
   }

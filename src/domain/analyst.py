@@ -44,6 +44,7 @@ class UploadResponse(BaseModel):
     filename: str
     schema: list[dict[str, str]]
     rows: int
+    suggested_questions: list[str] = []
 
 
 class AskRequest(BaseModel):
