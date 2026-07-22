@@ -38,6 +38,17 @@ def _pii_safe_schema(schema: list[dict[str, str]]) -> list[dict[str, str]]:
     return [{"name": s["name"], "type": s.get("type", "text"), "pii": s.get("pii", False)} for s in schema]
 
 
+def _sanitize_table_name(filename: str) -> str:
+    name = filename
+    if name.lower().endswith(".csv"):
+        name = name[:-4]
+    import re
+    name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+    if name and name[0].isdigit():
+        name = "_" + name
+    return name
+
+
 def intake(state: AnalystState) -> AnalystState:
     if not state.get("schema"):
         return {**state, "error": "No schema loaded; upload or select a source first."}
@@ -48,12 +59,36 @@ def plan(state: AnalystState) -> AnalystState:
     if state.get("error"):
         return state
     try:
+        from src.db.session import create_db_session
+        from src.db.models import Upload
+        import json
+        
+        all_schemas = {}
+        with create_db_session() as session:
+            uploads = session.query(Upload).all()
+            for u in uploads:
+                try:
+                    sch = json.loads(u.schema_json)
+                    tbl_name = _sanitize_table_name(u.filename)
+                    all_schemas[tbl_name] = _pii_safe_schema(sch)
+                except Exception:
+                    pass
+
         client = LLMClient()
         system = load_prompt("analyze")
-        user = f"SCHEMA:\n{_pii_safe_schema(state['schema'])}\n\nQUESTION:\n{state['user_message']}"
+
+        schema_context = ""
+        for tbl, cols in all_schemas.items():
+            schema_context += f"Table: {tbl}\nColumns:\n{json.dumps(cols, indent=2)}\n\n"
+
+        active_tbl = "dataset"
+        if state.get("storage_path"):
+            from pathlib import Path
+            active_tbl = _sanitize_table_name(Path(state["storage_path"]).name)
+
+        user = f"AVAILABLE TABLES AND SCHEMAS:\n{schema_context}\nDefault Active Table: {active_tbl}\n\nQUESTION:\n{state['user_message']}"
         text = client.complete(system, user, max_tokens=1024)
         
-        import json
         import re
         clean_text = text.strip()
         if clean_text.startswith("```"):
@@ -67,6 +102,7 @@ def plan(state: AnalystState) -> AnalystState:
             
         plan_obj: dict = {
             "intent": parsed_plan.get("intent") or classify_intent(state["user_message"]),
+            "table_name": parsed_plan.get("table_name") or active_tbl,
             "target_column": parsed_plan.get("target_column"),
             "group_by": parsed_plan.get("group_by"),
             "aggregation": parsed_plan.get("aggregation") or "NONE",
@@ -104,24 +140,40 @@ def execute_read_only(state: AnalystState) -> AnalystState:
             pass
 
     result = None
-    if storage_path and __import__("pathlib").Path(storage_path).exists():
-        try:
-            import duckdb
-            con = duckdb.connect(database=":memory:")
+    try:
+        import duckdb
+        from src.db.session import create_db_session
+        from src.db.models import Upload
+        
+        con = duckdb.connect(database=":memory:")
+        
+        # Load and register all uploaded CSVs in session/system as views
+        with create_db_session() as session:
+            uploads = session.query(Upload).all()
+            for u in uploads:
+                if u.storage_path and __import__("pathlib").Path(u.storage_path).exists():
+                    escaped_u_path = u.storage_path.replace("\\", "/")
+                    sanitized_name = _sanitize_table_name(u.filename)
+                    con.execute(f"CREATE OR REPLACE VIEW {sanitized_name} AS SELECT * FROM read_csv_auto('{escaped_u_path}', header=true, encoding='UTF-8', ignore_errors=true)")
+        
+        # Register default dataset view
+        if storage_path and __import__("pathlib").Path(storage_path).exists():
             escaped_path = storage_path.replace("\\", "/")
-            con.execute(f"CREATE VIEW dataset AS SELECT * FROM read_csv_auto('{escaped_path}', header=true, encoding='UTF-8', ignore_errors=true)")
+            con.execute(f"CREATE OR REPLACE VIEW dataset AS SELECT * FROM read_csv_auto('{escaped_path}', header=true, encoding='UTF-8', ignore_errors=true)")
             
-            from src.graph.sql_generator import generate_sql
-            plan_obj = state.get("plan") or {}
-            sql_data = generate_sql(plan_obj, state.get("user_message", ""), schema)
-            sql = sql_data["sql"]
-            
-            res = con.execute(sql).fetchall()
-            col_names = [desc[0] for desc in con.description]
-            rows_data = [dict(zip(col_names, r)) for r in res]
-            result = {"columns": col_names, "rows": rows_data, "timed_out": False}
-            con.close()
-        except Exception:
+        from src.graph.sql_generator import generate_sql
+        plan_obj = state.get("plan") or {}
+        sql_data = generate_sql(plan_obj, state.get("user_message", ""), schema)
+        sql = sql_data["sql"]
+        
+        res = con.execute(sql).fetchall()
+        col_names = [desc[0] for desc in con.description]
+        rows_data = [dict(zip(col_names, r)) for r in res]
+        result = {"columns": col_names, "rows": rows_data, "timed_out": False}
+        con.close()
+    except Exception:
+        # Quote-safe fallback block in case planning fails
+        if storage_path and __import__("pathlib").Path(storage_path).exists():
             try:
                 con = duckdb.connect(database=":memory:")
                 escaped_path = storage_path.replace("\\", "/")

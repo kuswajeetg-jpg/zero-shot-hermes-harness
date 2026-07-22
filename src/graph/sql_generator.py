@@ -27,6 +27,8 @@ def generate_sql(
     max_limit: int = 5000,
 ) -> dict[str, Any]:
     intent = plan.get("intent") or "custom_query"
+    table_name = plan.get("table_name") or "dataset"
+    table_name = "".join(c for c in table_name if c.isalnum() or c == "_")
     target_column = plan.get("target_column")
     group_by = plan.get("group_by")
     aggregation = (plan.get("aggregation") or "NONE").upper()
@@ -101,7 +103,7 @@ def generate_sql(
     else:
         order_clause = ""
 
-    sql = f"SELECT {select_clause} FROM dataset{where_clause}{group_clause}{order_clause} LIMIT {limit};"
+    sql = f"SELECT {select_clause} FROM {table_name}{where_clause}{group_clause}{order_clause} LIMIT {limit};"
 
     if _FORBIDDEN.search(sql) or _MULTI_STATEMENT.search(sql) or not _SELECT_ONLY.search(sql):
         raise SQLGenerationError("Generated SQL violates safety constraints.")
