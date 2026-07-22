@@ -52,7 +52,31 @@ def plan(state: AnalystState) -> AnalystState:
         system = load_prompt("analyze")
         user = f"SCHEMA:\n{_pii_safe_schema(state['schema'])}\n\nQUESTION:\n{state['user_message']}"
         text = client.complete(system, user, max_tokens=1024)
-        plan_obj: dict = {"intent": classify_intent(state["user_message"]), "raw": text}
+        
+        import json
+        import re
+        clean_text = text.strip()
+        if clean_text.startswith("```"):
+            clean_text = re.sub(r"^```(?:json)?\s*", "", clean_text)
+            clean_text = re.sub(r"\s*```$", "", clean_text)
+        
+        try:
+            parsed_plan = json.loads(clean_text)
+        except Exception:
+            parsed_plan = {}
+            
+        plan_obj: dict = {
+            "intent": parsed_plan.get("intent") or classify_intent(state["user_message"]),
+            "target_column": parsed_plan.get("target_column"),
+            "group_by": parsed_plan.get("group_by"),
+            "aggregation": parsed_plan.get("aggregation") or "NONE",
+            "filters": parsed_plan.get("filters") or [],
+            "sort_order": parsed_plan.get("sort_order") or "NONE",
+            "limit": parsed_plan.get("limit") or 100,
+            "confidence": parsed_plan.get("confidence") or 0.9,
+            "reasoning": parsed_plan.get("reasoning") or "",
+            "raw": text
+        }
         return {**state, "plan": plan_obj, "error": None, "checkpoint": "plan"}
     except LLMError as exc:
         return {**state, "error": str(exc), "checkpoint": "plan"}
@@ -87,46 +111,62 @@ def execute_read_only(state: AnalystState) -> AnalystState:
             escaped_path = storage_path.replace("\\", "/")
             con.execute(f"CREATE VIEW dataset AS SELECT * FROM read_csv_auto('{escaped_path}', header=true, encoding='UTF-8', ignore_errors=true)")
             
-            # Filter non-PII columns for meaningful aggregations (e.g. city, district, category, zone)
-            pii_names = {"id", "first_name", "last_name", "email", "phone", "aadhaar", "password", "driver_id"}
-            non_pii_text = [s["name"] for s in schema if s.get("type") == "text" and s["name"].lower() not in pii_names and not s.get("pii") in (True, "true")]
-            non_pii_numeric = [s["name"] for s in schema if s.get("type") in ("int", "float") and s["name"].lower() not in pii_names and not s.get("pii") in (True, "true")]
-
-            import re
-
-            # Match categorical group column (text) and numeric metric column (int/float) using word boundaries
-            group_col = None
-            val_col = None
-
-            for col in non_pii_text:
-                if re.search(r'\b' + re.escape(col.lower()) + r'\b', question):
-                    group_col = col
-                    break
-
-            for col in non_pii_numeric:
-                if re.search(r'\b' + re.escape(col.lower()) + r'\b', question):
-                    val_col = col
-                    break
-
-            if not group_col:
-                group_col = non_pii_text[0] if non_pii_text else (columns[0] if columns else "id")
-            if not val_col:
-                val_col = non_pii_numeric[0] if non_pii_numeric else (columns[1] if len(columns) > 1 else group_col)
-
-            if any(k in question for k in ("avg", "average", "औसत")):
-                sql = f"SELECT {group_col}, ROUND(AVG({val_col}), 2) as avg_{val_col} FROM dataset GROUP BY {group_col} ORDER BY avg_{val_col} DESC LIMIT 10"
-            elif any(k in question for k in ("count", "how many", "records", "कुल", "संख्या", "कितने")):
-                sql = f"SELECT {group_col}, COUNT(*) as total_count FROM dataset GROUP BY {group_col} ORDER BY total_count DESC LIMIT 10"
-            else:
-                sql = f"SELECT {group_col}, COUNT(*) as count FROM dataset GROUP BY {group_col} ORDER BY count DESC LIMIT 10"
-
+            from src.graph.sql_generator import generate_sql
+            plan_obj = state.get("plan") or {}
+            sql_data = generate_sql(plan_obj, state.get("user_message", ""), schema)
+            sql = sql_data["sql"]
+            
             res = con.execute(sql).fetchall()
             col_names = [desc[0] for desc in con.description]
             rows_data = [dict(zip(col_names, r)) for r in res]
             result = {"columns": col_names, "rows": rows_data, "timed_out": False}
             con.close()
         except Exception:
-            result = None
+            try:
+                con = duckdb.connect(database=":memory:")
+                escaped_path = storage_path.replace("\\", "/")
+                con.execute(f"CREATE VIEW dataset AS SELECT * FROM read_csv_auto('{escaped_path}', header=true, encoding='UTF-8', ignore_errors=true)")
+                
+                # Filter non-PII columns for meaningful aggregations (e.g. city, district, category, zone)
+                pii_names = {"id", "first_name", "last_name", "email", "phone", "aadhaar", "password", "driver_id"}
+                non_pii_text = [s["name"] for s in schema if s.get("type") == "text" and s["name"].lower() not in pii_names and not s.get("pii") in (True, "true")]
+                non_pii_numeric = [s["name"] for s in schema if s.get("type") in ("int", "float") and s["name"].lower() not in pii_names and not s.get("pii") in (True, "true")]
+
+                import re
+
+                # Match categorical group column (text) and numeric metric column (int/float) using word boundaries
+                group_col = None
+                val_col = None
+
+                for col in non_pii_text:
+                    if re.search(r'\b' + re.escape(col.lower()) + r'\b', question):
+                        group_col = col
+                        break
+
+                for col in non_pii_numeric:
+                    if re.search(r'\b' + re.escape(col.lower()) + r'\b', question):
+                        val_col = col
+                        break
+
+                if not group_col:
+                    group_col = non_pii_text[0] if non_pii_text else (columns[0] if columns else "id")
+                if not val_col:
+                    val_col = non_pii_numeric[0] if non_pii_numeric else (columns[1] if len(columns) > 1 else group_col)
+
+                if any(k in question for k in ("avg", "average", "औसत")):
+                    sql = f'SELECT "{group_col}", ROUND(AVG("{val_col}"), 2) as "avg_{val_col}" FROM dataset GROUP BY "{group_col}" ORDER BY "avg_{val_col}" DESC LIMIT 10'
+                elif any(k in question for k in ("count", "how many", "records", "कुल", "संख्या", "कितने")):
+                    sql = f'SELECT "{group_col}", COUNT(*) as "total_count" FROM dataset GROUP BY "{group_col}" ORDER BY "total_count" DESC LIMIT 10'
+                else:
+                    sql = f'SELECT "{group_col}", COUNT(*) as "count" FROM dataset GROUP BY "{group_col}" ORDER BY "count" DESC LIMIT 10'
+
+                res = con.execute(sql).fetchall()
+                col_names = [desc[0] for desc in con.description]
+                rows_data = [dict(zip(col_names, r)) for r in res]
+                result = {"columns": col_names, "rows": rows_data, "timed_out": False}
+                con.close()
+            except Exception:
+                result = None
 
     if not result:
         col_names = columns if columns else ["category", "count"]
