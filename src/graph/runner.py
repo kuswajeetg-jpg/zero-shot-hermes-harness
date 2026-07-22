@@ -31,9 +31,13 @@ def run_agent(
     output_text = ""
     error_message = ""
     status = "completed"
+    provider = None
+    model = None
 
     try:
         client = LLMClient()
+        provider = client.provider_name
+        model = client.model
         system = load_prompt("transform")
         user = f"INSTRUCTION:\n{instruction}\n\nTEXT:\n{input_text}"
         output_text = client.complete(system, user, max_tokens=2048)
@@ -49,4 +53,6 @@ def run_agent(
             run.status = status
             run.output_text = output_text
             run.error_message = error_message
+            run.provider = provider
+            run.model = model
     return run_id

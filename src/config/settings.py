@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_MODELS = {
     "anthropic": "claude-sonnet-4-6",
-    "gemini": "gemini-2.0-flash",
+    "gemini": "gemini-3.5-flash",
     "openrouter": "tencent/hy3",
 }
 

@@ -21,11 +21,17 @@ GREEN, RED, YELLOW, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[0m"
 
 
 def _ok(msg: str) -> None:
-    print(f"  {GREEN}✓{RESET} {msg}")
+    try:
+        print(f"  {GREEN}✓{RESET} {msg}")
+    except UnicodeEncodeError:
+        print(f"  {GREEN}[OK]{RESET} {msg}")
 
 
 def _fail(msg: str) -> None:
-    print(f"  {RED}✗{RESET} {msg}")
+    try:
+        print(f"  {RED}✗{RESET} {msg}")
+    except UnicodeEncodeError:
+        print(f"  {RED}[FAIL]{RESET} {msg}")
 
 
 def _warn(msg: str) -> None:
