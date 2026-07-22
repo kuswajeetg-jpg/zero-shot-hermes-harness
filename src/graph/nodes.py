@@ -5,6 +5,7 @@ from src.graph.state import AgentState, AnalystState
 from src.llm.client import LLMClient, load_prompt
 from src.llm.fallback_engine import answer_fallback, classify_intent
 from src.llm.providers.base import LLMError
+from collections import Counter
 
 
 def transform_text(state: AgentState) -> AgentState:
@@ -285,18 +286,172 @@ def answer_node(state: AnalystState) -> AnalystState:
     }
 
 
+def _summarize_rows(rows: list[dict[str, Any]], question: str = "") -> str:
+    if not rows:
+        return "The query returned no matching records."
+
+    columns = list(rows[0].keys())
+    q_lower = (question or "").lower()
+    is_summarize = any(k in q_lower for k in ("summarize", "summary", "overview", "describe the data", "about the data", "dataset"))
+
+    if is_summarize:
+        parts: list[str] = [f"This dataset contains {len(rows)} record(s) across {len(columns)} column(s)."]
+
+        # Describe each column
+        col_descriptions: list[str] = []
+        numeric_cols = []
+        text_cols = []
+
+        for col in columns:
+            values = [r.get(col) for r in rows if r.get(col) is not None]
+            if not values:
+                col_descriptions.append(f"- {col}: empty / no data")
+                continue
+
+            numeric_vals = [v for v in values if isinstance(v, (int, float))]
+            unique_vals = list({str(v) for v in values})
+
+            if numeric_vals:
+                numeric_cols.append(col)
+                col_descriptions.append(
+                    f"- {col}: numeric data, range {min(numeric_vals):,} to {max(numeric_vals):,}, "
+                    f"average {sum(numeric_vals)/len(numeric_vals):,.2f}, {len(unique_vals)} unique value(s)"
+                )
+            elif len(unique_vals) <= 10:
+                text_cols.append(col)
+                col_descriptions.append(
+                    f"- {col}: categorical with {len(unique_vals)} unique value(s) — {', '.join(sorted(unique_vals)[:8])}"
+                )
+            else:
+                text_cols.append(col)
+                top = sorted(Counter(str(v) for v in values).items(), key=lambda kv: kv[1], reverse=True)[:3]
+                col_descriptions.append(
+                    f"- {col}: categorical, {len(unique_vals)} unique value(s). Most frequent: "
+                    + "; ".join(f"{k} ({v})" for k, v in top)
+                )
+
+        parts.append("Column Analysis:\n" + "\n".join(col_descriptions))
+
+        # Summary statistics for numeric columns
+        if numeric_cols:
+            num_parts = []
+            for num_col in numeric_cols[:3]:
+                num_vals = [r.get(num_col) for r in rows if isinstance(r.get(num_col), (int, float))]
+                if num_vals:
+                    num_parts.append(
+                        f"{num_col}: total {sum(num_vals):,}, average {sum(num_vals)/len(num_vals):,.2f}, "
+                        f"min {min(num_vals):,}, max {max(num_vals):,}"
+                    )
+            if num_parts:
+                parts.append("Numeric Summary:\n" + "\n".join(f"- {p}" for p in num_parts))
+
+        # Distribution for categorical columns
+        if text_cols:
+            cat_parts = []
+            for cat_col in text_cols[:3]:
+                counts = Counter(str(r.get(cat_col)) for r in rows if r.get(cat_col) is not None)
+                top_cats = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:5]
+                if top_cats:
+                    cat_parts.append(f"{cat_col} distribution: " + "; ".join(f"{k} ({v})" for k, v in top_cats))
+            if cat_parts:
+                parts.append("Category Distribution:\n" + "\n".join(f"- {p}" for p in cat_parts))
+
+        return "\n\n".join(parts)
+
+    # Non-summarize path: concise summary
+    summary_parts: list[str] = []
+    summary_parts.append(f"Returned {len(rows)} record(s).")
+
+    numeric_cols = []
+    text_cols = []
+    for col in columns:
+        sample = next((r.get(col) for r in rows[:3]), None)
+        if isinstance(sample, (int, float)):
+            numeric_cols.append(col)
+        else:
+            text_cols.append(col)
+
+    if numeric_cols:
+        metric_col = numeric_cols[0]
+        values = [r.get(metric_col) for r in rows if isinstance(r.get(metric_col), (int, float))]
+        if values:
+            summary_parts.append(
+                f"{metric_col}: total {sum(values):,}, average {sum(values)/len(values):,.2f}, "
+                f"range {min(values):,} to {max(values):,} across {len(values)} records."
+            )
+
+    if text_cols:
+        category_col = text_cols[0]
+        counts = Counter(str(r.get(category_col)) for r in rows if r.get(category_col) is not None)
+        if counts:
+            most_common = max(counts.items(), key=lambda kv: kv[1])
+            summary_parts.append(f"{category_col} is dominated by '{most_common[0]}' ({most_common[1]} records).")
+            if len(counts) <= 8:
+                top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:5]
+                summary_parts.append(
+                    "Top groups by count: " + "; ".join(f"{k} ({v})" for k, v in top) + "."
+                )
+
+    return " ".join(summary_parts)
+
+
 def _synthesize_answer(question: str, result: dict[str, Any], advisor: dict[str, Any]) -> str:
     rows = result.get("rows") or []
     columns = result.get("columns") or (list(rows[0].keys()) if rows else [])
-    first = rows[0] if rows else {}
-    top_items = [f"- {k}: {v}" for k, v in list(first.items())[:3]]
-    top_block = "\n".join(top_items) if top_items else "No result rows were returned."
 
-    intro = question.strip().rstrip(".?") or "your operational query"
+    intro = question.strip().rstrip(".?") or "the queried dataset"
     lead = f"{intro} returned {len(rows)} record(s)."
+
+    if not rows:
+        summary = "The query returned no matching records."
+    else:
+        q_lower = (question or "").lower()
+        is_summarize = any(k in q_lower for k in ("summarize", "summary", "overview", "describe the data", "about the data", "dataset"))
+        
+        if is_summarize:
+            summary = _summarize_rows(rows, question)
+        else:
+            # Show quick insight for any query: total rows, key columns, top categories, totals/averages
+            summary_parts = []
+            summary_parts.append(f"Returned {len(rows)} record(s) with {len(columns)} column(s).")
+
+            # Identify numeric and text columns from actual row data
+            numeric_cols = []
+            text_cols = []
+            for col in columns:
+                sample = next((r.get(col) for r in rows[:3]), None)
+                if isinstance(sample, (int, float)) and not isinstance(sample, bool):
+                    numeric_cols.append(col)
+                else:
+                    text_cols.append(col)
+
+            # Show totals/averages for numeric columns
+            if numeric_cols:
+                for metric_col in numeric_cols[:3]:
+                    values = [r.get(metric_col) for r in rows if isinstance(r.get(metric_col), (int, float))]
+                    if values:
+                        summary_parts.append(
+                            f"{metric_col}: total {sum(values):,}, average {sum(values)/len(values):,.2f}, "
+                            f"min {min(values):,}, max {max(values):,} across {len(values)} records."
+                        )
+
+            # Show category distributions
+            if text_cols:
+                for category_col in text_cols[:3]:
+                    counts = Counter(str(r.get(category_col)) for r in rows if r.get(category_col) is not None)
+                    if counts:
+                        most_common = max(counts.items(), key=lambda kv: kv[1])
+                        summary_parts.append(f"{category_col}: '{most_common[0]}' appears {most_common[1]} times.")
+                        if len(counts) <= 8:
+                            top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:5]
+                            summary_parts.append(
+                                "Top groups by count: " + "; ".join(f"{k} ({v})" for k, v in top) + "."
+                            )
+
+            summary = " ".join(summary_parts)
 
     advisory = ""
     if advisor.get("has_insights") and advisor.get("insights"):
         advisory = "\n\n**Advisory Notes**\n" + "\n".join(advisor["insights"]) + "\n"
 
-    return f"{lead}\n\nKey result values:\n{top_block}{advisory}"
+    return f"{lead}\n\n{summary}{advisory}"
