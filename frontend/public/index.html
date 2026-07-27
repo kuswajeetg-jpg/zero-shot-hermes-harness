@@ -2,19 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Zero-Shot Agent — UP Police Data Intelligence Command Center</title>
-  <link rel="stylesheet" href="styles.css?v=3.0" />
+  <link rel="stylesheet" href="styles.css?v=4.1" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <main class="shell">
 
-    <!-- AUTH SECTION -->
+    <!-- AUTH -->
     <section id="auth-view" class="view">
-      <div class="auth-card">
-        <div class="brand-wrap" style="margin-bottom: 20px;">
-          <div class="brand-icon">UP</div>
+      <div class="auth-card" role="region" aria-label="Login">
+        <div class="brand-wrap">
+          <div class="brand-icon" aria-hidden="true">UP</div>
           <div>
             <h1 id="txt-auth-title">Analyst Portal Login</h1>
             <p class="hint" id="txt-auth-sub">UP Police Autonomous Data Intelligence Portal</p>
@@ -24,148 +24,164 @@
         <form id="auth-form" novalidate>
           <label for="auth-email" id="txt-label-email">Email Address</label>
           <input id="auth-email" type="email" autocomplete="email" placeholder="analyst@police.gov.in" />
-
           <label for="auth-password" id="txt-label-pass">Password</label>
           <input id="auth-password" type="password" autocomplete="current-password" placeholder="••••••••" />
-
           <div id="auth-error" class="error" hidden></div>
-          <div style="display: flex; gap: 10px; margin-top: 24px;">
-            <button id="auth-submit" type="submit" style="flex: 1;">Login</button>
+          <div class="form-actions">
+            <button id="auth-submit" type="submit">Login</button>
             <button id="auth-toggle" class="ghost" type="button">Create Account</button>
           </div>
         </form>
       </div>
     </section>
 
-    <!-- MAIN ANALYST COMMAND CENTER -->
+    <!-- MAIN COMMAND CENTER -->
     <section id="analyse-view" class="view" hidden>
-      <!-- TOP NAVIGATION BAR -->
       <header class="topbar">
         <div class="brand-wrap">
-          <div class="brand-icon">UP</div>
-          <div>
+          <div class="brand-icon" aria-hidden="true">UP</div>
+          <div class="brand-text">
             <h1 id="txt-nav-title">UP Police Data Intelligence Agent</h1>
             <div id="subheader" class="subheader">
               <span id="user-email" class="user-badge"></span>
               <span id="fallback-badge" class="badge" hidden>Fallback Engine</span>
-              <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border-color: rgba(16, 185, 129, 0.4);">DuckDB Live SQL Engine</span>
+              <span class="badge engine-badge">DuckDB Live SQL Engine</span>
             </div>
           </div>
         </div>
 
         <div class="right-controls">
-          <!-- LANGUAGE SWITCHER TOGGLE (ENGLISH / HINDI) -->
-          <div class="lang-toggle">
-            <button id="lang-en" class="lang-btn active">English</button>
-            <button id="lang-hi" class="lang-btn">हिंदी</button>
+          <button id="sidebar-toggle" class="ghost small" aria-label="Toggle sources panel">☰ Sources</button>
+          <div class="lang-toggle" role="group" aria-label="Language">
+            <button id="lang-en" class="lang-btn active" lang="en">English</button>
+            <button id="lang-hi" class="lang-btn" lang="hi">हिंदी</button>
           </div>
           <button id="logout-btn" class="ghost small">Logout</button>
         </div>
       </header>
 
-      <!-- NAVIGATION TABS -->
-      <nav class="nav-tabs">
-        <button id="tab-dashboard" class="tab-btn active">📊 Query Dashboard</button>
-        <button id="tab-schema" class="tab-btn">🔍 Schema Inspector</button>
-        <button id="tab-audit" class="tab-btn">📜 Audit Trail & Query Memory</button>
+      <nav class="nav-tabs" aria-label="Workspace">
+        <button id="tab-dashboard" class="tab-btn active">Query Dashboard</button>
+        <button id="tab-schema" class="tab-btn">Schema Inspector</button>
+        <button id="tab-audit" class="tab-btn">Audit Trail & Memory</button>
       </nav>
 
-      <!-- KPI METRICS STRIP -->
-      <div class="kpi-grid">
-        <div class="kpi-card">
+      <div class="kpi-grid" role="list">
+        <div class="kpi-card" role="listitem">
           <div class="kpi-title" id="kpi-lbl-sources">Active Datasets</div>
           <div class="kpi-value" id="kpi-val-sources">0 Files</div>
           <div class="kpi-sub" id="kpi-sub-sources">Multi-CSV Ingestion Active</div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card" role="listitem">
           <div class="kpi-title" id="kpi-lbl-rows">Total Dataset Records</div>
           <div class="kpi-value" id="kpi-val-rows">0 Rows</div>
           <div class="kpi-sub" id="kpi-sub-rows">In-Memory Engine</div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card" role="listitem">
           <div class="kpi-title" id="kpi-lbl-engine">Query Execution Engine</div>
           <div class="kpi-value">DuckDB v1.5.4</div>
           <div class="kpi-sub" id="kpi-sub-engine">Zero-Trust Read-Only</div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card" role="listitem">
           <div class="kpi-title" id="kpi-lbl-security">Privacy & Shielding</div>
-          <div class="kpi-value" style="color: #10b981;">PII Protected</div>
+          <div id="kpi-val-security" class="kpi-value accent-emerald">PII Protected</div>
           <div class="kpi-sub" id="kpi-sub-security">Zero Prompt Leaks</div>
         </div>
       </div>
 
-      <!-- VIEW 1: QUERY DASHBOARD WORKSPACE -->
+      <div id="executive-briefing-card" class="card" hidden>
+        <h2 id="txt-exec-brief">Executive Briefing</h2>
+        <div id="executive-briefing" class="hint" hidden></div>
+      </div>
+
+      <!-- DASHBOARD -->
       <div id="view-tab-dashboard" class="tab-content">
-        <div class="grid">
-          <!-- LEFT: DATA SOURCES & MULTI-CSV SELECTOR -->
-          <div class="col">
-            <div class="card">
-              <h2 id="txt-hdr-sources">Datasets & Data Sources</h2>
-              <div id="source-strip" class="source-strip">
-                <div class="hint" id="txt-no-sources">No CSV datasets uploaded yet.</div>
-              </div>
+        <div class="dashboard-layout">
+          <aside id="sidebar" class="sidebar">
+            <div class="col">
+              <div class="card">
+                <h2 id="txt-hdr-sources">Datasets & Data Sources</h2>
+                <div id="source-strip" class="source-strip">
+                  <div class="hint" id="txt-no-sources">No CSV datasets uploaded yet.</div>
+                </div>
 
-              <label class="upload-label" style="margin-top: 10px;">
-                <input id="file-input" type="file" accept=".csv,text/csv" hidden multiple />
-              </label>
-              <button id="upload-trigger" class="secondary" style="width: 100%;">+ Add CSV Dataset</button>
-              <div id="upload-status" class="status" hidden></div>
-              <div id="upload-error" class="error" hidden></div>
+                <label class="upload-label">
+                  <input id="file-input" type="file" accept=".csv,text/csv" hidden multiple />
+                </label>
+                <button id="upload-trigger" class="secondary full-width">+ Add CSV Dataset</button>
+                <div id="upload-status" class="status" hidden></div>
+                <div id="upload-error" class="error" hidden></div>
 
-              <div id="field-selector" class="card" hidden style="margin-top: 12px;">
-                <h2 style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 8px;">Select Fields for Analysis</h2>
-                <div id="field-checkboxes" class="field-list"></div>
-                <div style="display: flex; gap: 8px; margin-top: 10px;">
-                  <button id="field-apply-btn" class="primary small" style="flex: 1;">Apply Selected Fields</button>
-                  <button id="field-reset-btn" class="ghost small">Use All</button>
+                <div id="field-selector" class="card inset" hidden>
+                  <h2 id="field-selector-title" class="field-selector-title">Select Fields for Analysis</h2>
+                  <div id="field-checkboxes" class="field-list"></div>
+                  <div class="field-actions">
+                    <button id="field-apply-btn" class="primary small">Apply Selected Fields</button>
+                    <button id="field-reset-btn" class="ghost small">Use All</button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <!-- QUICK ASK SAMPLE QUESTIONS -->
-            <div class="card">
-              <h2>Quick-Ask Sample Queries</h2>
-              <p class="hint" style="margin-bottom: 8px;">Click any sample question to run immediately:</p>
-              <div class="sample-pills" id="sample-pills">
-                <div class="sample-pill" data-query="show top records by city">🏙️ Top Records by City</div>
-                <div class="sample-pill" data-query="average salary by city">💰 Average Salary by City</div>
-                <div class="sample-pill" data-query="count total records">📊 Total Record Count</div>
-                <div class="sample-pill" data-query="average age by city">👤 Average Age by City</div>
+              <div class="card">
+                <h2 id="sample-title">Quick-Ask Sample Queries</h2>
+                <p id="sample-hint" class="hint">Click any sample question to run immediately:</p>
+                <div class="sample-pills" id="sample-pills"></div>
               </div>
             </div>
-          </div>
+          </aside>
 
-          <!-- RIGHT: QUERY ANALYZER & RESULTS -->
-          <div class="col wide">
+          <div class="main-col">
             <div class="card">
               <h2 id="txt-hdr-ask">Ask Analytical Question</h2>
               <div class="ask-row">
                 <input id="question" type="text" placeholder="e.g., show top 5 records by city or average metrics" />
                 <button id="ask-btn">Ask Question</button>
+                <button id="mic-btn" class="ghost small" title="Dictate query">🎙️</button>
               </div>
+              <div id="progress-stepper" class="stepper" hidden>
+                <div class="step" data-step="1">
+                  <div class="step-dot"></div>
+                  <div class="step-label">Reading Schema</div>
+                </div>
+                <div class="step-line"></div>
+                <div class="step" data-step="2">
+                  <div class="step-dot"></div>
+                  <div class="step-label">Drafting Execution Plan</div>
+                </div>
+                <div class="step-line"></div>
+                <div class="step" data-step="3">
+                  <div class="step-dot"></div>
+                  <div class="step-label">Querying DuckDB</div>
+                </div>
+                <div class="step-line"></div>
+                <div class="step" data-step="4">
+                  <div class="step-dot"></div>
+                  <div class="step-label">Compiling Advisor Notes</div>
+                </div>
+              </div>
+              <div id="speech-status" class="status" hidden></div>
               <div id="ask-error" class="error inline" hidden></div>
               <div id="ask-status" class="status" hidden></div>
             </div>
 
-            <!-- ANSWER PANEL -->
             <div id="answer-panel" class="card answer-panel" hidden>
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+              <div class="answer-header">
                 <h2 id="txt-hdr-answer">Executive Intelligence Answer</h2>
-                <div style="display: flex; gap: 8px;">
+                <div class="export-actions">
                   <button id="export-csv" class="ghost small">Export CSV</button>
                   <button id="export-md" class="ghost small">Export Report</button>
+                  <button id="copy-answer" class="ghost small">Copy Answer</button>
                 </div>
               </div>
 
-              <!-- ADVISOR BANNER -->
               <div id="advisor-banner" class="advisor-banner" hidden>
-                <div class="advisor-headline">📌 <span id="advisor-headline-text">Executive Advisor Alert</span></div>
+                <div class="advisor-headline">Advisor Alert</div>
                 <div id="advisor-text"></div>
               </div>
 
-              <div id="reply-text" style="font-size: 1rem; color: #f1f5f9; margin-bottom: 16px;"></div>
+              <div id="reply-text" class="reply-text"></div>
 
-              <h3 id="txt-hdr-table" style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 8px;">Structured Data Results</h3>
+              <h3 id="txt-hdr-table" class="section-label">Structured Data Results</h3>
               <div id="table-wrap" class="table-wrap">
                 <div id="table-placeholder" class="hint">Run a question to display tabular results.</div>
                 <table id="data-table" class="data-table" hidden>
@@ -174,17 +190,23 @@
                 </table>
               </div>
 
-              <!-- CHART HEADER & MULTI-TYPE SWITCHER BAR -->
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-                <h3 id="txt-hdr-chart" style="font-size: 0.95rem; color: var(--text-muted); margin: 0;">Visual Analytics Chart</h3>
-                
-                <!-- MULTI-CHART TYPE SELECTOR BUTTONS -->
-                <div class="chart-type-bar">
-                  <button class="chart-type-btn active" data-chart="bar">📊 Bar</button>
-                  <button class="chart-type-btn" data-chart="line">📈 Line</button>
-                  <button class="chart-type-btn" data-chart="doughnut">🍩 Doughnut</button>
-                  <button class="chart-type-btn" data-chart="pie">🥧 Pie</button>
-                  <button class="chart-type-btn" data-chart="polarArea">🎯 Polar</button>
+              <div class="chart-header">
+                <h3 id="txt-hdr-chart" class="section-label">Visual Analytics Chart</h3>
+                <div class="chart-type-bar" id="chart-type-bar">
+                  <button class="chart-type-btn active" data-chart="bar">Bar</button>
+                  <button class="chart-type-btn" data-chart="line">Line</button>
+                  <button class="chart-type-btn" data-chart="doughnut">Doughnut</button>
+                  <button class="chart-type-btn" data-chart="pie">Pie</button>
+                  <button class="chart-type-btn" data-chart="polarArea">Polar</button>
+                  <button class="chart-type-btn" data-chart="histogram">Histogram</button>
+                  <button class="chart-type-btn" data-chart="box">Box</button>
+                  <button class="chart-type-btn" data-chart="scatter">Scatter</button>
+                  <button class="chart-type-btn" data-chart="heatmap">Heatmap</button>
+                  <button class="chart-type-btn" data-chart="area">Area</button>
+                </div>
+                <div class="chart-axis-row">
+                  <label class="axis-label">X: <select id="chart-x-axis"></select></label>
+                  <label class="axis-label">Y: <select id="chart-y-axis"></select></label>
                 </div>
               </div>
 
@@ -193,48 +215,59 @@
                 <div id="chart-placeholder" class="hint">No chart specification generated for this query.</div>
               </div>
 
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; font-size: 0.8rem; color: var(--text-subtle);">
+              <div class="run-meta">
                 <span id="run-meta"></span>
                 <span id="export-link-wrap"></span>
+              </div>
+
+              <div class="debug-panel" id="debug-panel">
+                <div class="debug-header">
+                  <span class="debug-title">Debug Logs</span>
+                  <button class="ghost small" id="debug-clear">Clear</button>
+                </div>
+                <div class="debug-body" id="debug-body"></div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- VIEW 2: SCHEMA INSPECTOR WORKSPACE -->
+      <!-- SCHEMA -->
       <div id="view-tab-schema" class="tab-content" hidden>
         <div class="card">
-          <h2 id="txt-hdr-schema">Active Dataset Schema Inspector</h2>
-          <div id="schema-empty" class="hint">Upload a CSV or select an active dataset first.</div>
-          <table id="schema-table" class="schema-table" hidden>
-            <thead>
-              <tr>
-                <th id="th-col">Column</th>
-                <th id="th-type">Type</th>
-                <th id="th-pii">Privacy Flag</th>
-              </tr>
-            </thead>
-            <tbody id="schema-body"></tbody>
-          </table>
-          <div id="schema-meta" class="hint" style="margin-top: 10px;"></div>
+          <h2 id="schema-title">Schema Inspector</h2>
+          <p id="schema-hint" class="hint">Dataset structure, columns, types, and PII classification.</p>
+          <div class="table-wrap">
+            <table id="schema-table" class="data-table">
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>Type</th>
+                  <th>PII</th>
+                </tr>
+              </thead>
+              <tbody id="schema-body"></tbody>
+            </table>
+            <div id="schema-empty" class="hint" hidden>Upload a CSV or select an active dataset first.</div>
+          </div>
+          <div class="schema-meta" id="schema-meta"></div>
         </div>
       </div>
 
-      <!-- VIEW 3: AUDIT TRAIL & SELF-LEARNING MEMORY LOGS -->
+      <!-- AUDIT -->
       <div id="view-tab-audit" class="tab-content" hidden>
         <div class="card">
-          <h2>Query Memory & Audit Trail</h2>
-          <p class="hint" style="margin-bottom: 12px;">Historical execution logs, latency performance, and user feedback ratings for self-learning optimization.</p>
+          <h2 id="audit-title">Query Memory & Audit Trail</h2>
+          <p id="audit-hint" class="hint">Historical execution logs, latency performance, and user feedback ratings for self-learning optimization.</p>
           <div class="table-wrap">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Timestamp</th>
-                  <th>Question</th>
-                  <th>Execution Latency</th>
-                  <th>Engine Status</th>
-                  <th>Rating Feedback</th>
+                  <th id="audit-col-time">Timestamp</th>
+                  <th id="audit-col-question">Question</th>
+                  <th id="audit-col-latency">Execution Latency</th>
+                  <th id="audit-col-engine">Engine Status</th>
+                  <th id="audit-col-rating">Rating Feedback</th>
                 </tr>
               </thead>
               <tbody id="audit-history-body">
@@ -243,7 +276,7 @@
                   <td>find important points</td>
                   <td>367ms</td>
                   <td><span class="safe-badge">DuckDB Live SQL</span></td>
-                  <td><button class="ghost small">👍 Verified</button></td>
+                  <td><button class="ghost small">Verified</button></td>
                 </tr>
               </tbody>
             </table>
@@ -253,6 +286,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=3.3"></script>
+  <script src="app.js?v=4.1"></script>
 </body>
 </html>

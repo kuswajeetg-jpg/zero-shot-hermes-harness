@@ -18,7 +18,7 @@ class LLMProvider(ABC):
     model: str = ""
 
     @abstractmethod
-    def complete(self, system: str, user: str, *, max_tokens: int = 1024) -> str:
+    def complete(self, system: str, user: str, *, max_tokens: int = 1024, model_override: str | None = None) -> str:
         """One batched completion. NEVER loop this per output line/token —
         generate the whole artifact in one call, then split downstream."""
         raise NotImplementedError

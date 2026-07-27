@@ -14,6 +14,7 @@ Analyze the dataset for **statistical anomalies**, **spikes**, **outliers**, or 
 - Look for dominant categories accounting for >35% of total metric volume.
 - Detect sudden metric spikes (>25% increase over baseline).
 - Highlight unexpected zero/missing values or high-risk severity categories.
+- **Police HR Context**: If evaluating training data, flag officers with 0 course completions, low Karma Points, missing Gender/Category, and highlight top performers.
 - Keep insights bulleted, authoritative, and actionable.
 
 ## OUTPUT FORMAT

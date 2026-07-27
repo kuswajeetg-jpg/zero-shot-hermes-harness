@@ -17,7 +17,17 @@ class AnthropicProvider(LLMProvider):
         self._api_key = api_key
         self.model = model
 
-    def complete(self, system: str, user: str, *, max_tokens: int = 1024) -> str:
+    def complete(self, system: str, user: str, *, max_tokens: int = 1024, model_override: str | None = None) -> str:
+        payload = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        if model_override:
+            payload["model"] = model_override
         def _call() -> str:
             resp = httpx.post(
                 _API_URL,
@@ -26,12 +36,7 @@ class AnthropicProvider(LLMProvider):
                     "anthropic-version": _API_VERSION,
                     "content-type": "application/json",
                 },
-                json={
-                    "model": self.model,
-                    "max_tokens": max_tokens,
-                    "system": system,
-                    "messages": [{"role": "user", "content": user}],
-                },
+                json=payload,
                 timeout=120.0,
             )
             resp.raise_for_status()

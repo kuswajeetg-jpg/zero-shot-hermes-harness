@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CSV Preparation — UP Police Data Agent</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: rgba(15,23,42,0.72);
+    --text: #f1f5f9;
+    --subtle: #94a3b8;
+    --accent-emerald: #10b981;
+    --accent-indigo: #6366f1;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --ok: #22c55e;
+    --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: radial-gradient(1200px 800px at 10% 10%, rgba(99,102,241,0.18), transparent),
+                radial-gradient(800px 600px at 90% 30%, rgba(16,185,129,0.18), transparent),
+                var(--bg);
+    color: var(--text);
+    font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 22px; }
+  .brand { display:flex; align-items:center; gap:12px; margin-bottom: 18px; }
+  .brand .logo {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-emerald), var(--accent-indigo));
+    box-shadow: 0 10px 30px rgba(99,102,241,0.35);
+  }
+  .brand h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+  .brand .tag {
+    margin-left: 6px; padding: 6px 10px; border-radius: 999px;
+    background: rgba(99,102,241,0.18); color: #c7d2fe;
+    border: 1px solid rgba(99,102,241,0.35); font-size: 12px; font-weight: 600;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(18px);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+
+  .drop {
+    border: 1.5px dashed rgba(255,255,255,0.22);
+    border-radius: 16px; padding: 28px; text-align: center;
+    color: var(--subtle); cursor: pointer; transition: .2s ease;
+  }
+  .drop:hover, .drop.over {
+    border-color: rgba(99,102,241,0.6);
+    background: rgba(99,102,241,0.10);
+    color: #e2e8f0;
+  }
+  .drop input { display: none; }
+
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    appearance: none; border: 0; padding: 10px 14px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-emerald), var(--accent-indigo));
+    color: white; font-weight: 600; cursor: pointer;
+    box-shadow: 0 10px 30px rgba(16,185,129,0.25);
+  }
+  .btn.secondary {
+    background: rgba(15,23,42,0.65); border: 1px solid var(--border); color: #e2e8f0;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  }
+  .badge.ok { background: rgba(34,197,94,0.18); color: #86efac; border: 1px solid rgba(34,197,94,0.35); }
+  .badge.warn { background: rgba(245,158,11,0.18); color: #fcd34d; border: 1px solid rgba(245,158,11,0.35); }
+  .badge.danger { background: rgba(239,68,68,0.18); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
+
+  table { width: 100%; border-collapse: collapse; color: var(--text); }
+  th, td {
+    text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border);
+    font-size: 13px; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+  }
+  th { color: #cbd5e1; font-weight: 600; background: rgba(15,23,42,0.55); position: sticky; top: 0; }
+  tr:hover td { background: rgba(255,255,255,0.04); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  .pill { padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .pill.ok { background: rgba(34,197,94,0.18); color: #86efac; }
+  .pill.warn { background: rgba(245,158,11,0.18); color: #fcd34d; }
+  .pill.danger { background: rgba(239,68,68,0.18); color: #fca5a5; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .stat { background: rgba(15,23,42,0.55); padding: 12px; border-radius: 12px; border: 1px solid var(--border); }
+  .stat .label { color: var(--subtle); font-size: 12px; font-weight: 600; }
+  .stat .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+
+  .empty { color: var(--subtle); padding: 14px; text-align: center; }
+  .right { display:flex; justify-content:flex-end; }
+  .row { display:flex; align-items:center; gap: 12px; flex-wrap: wrap; }
+  .gap { height: 10px; }
+  .table-wrap { max-height: 420px; overflow: auto; border-radius: 12px; border: 1px solid var(--border); }
+
+  details { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: rgba(15,23,42,0.45); }
+  summary { cursor:pointer; font-weight:600; color:#e2e8f0; }
+
+  .toast {
+    position: fixed; bottom: 18px; right: 18px; z-index: 1000;
+    background: rgba(15,23,42,0.85); color:#f8fafc; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 12px;
+    backdrop-filter: blur(12px); box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo"></div>
+      <h1>CSV Preparation Studio</h1>
+      <span class="tag">Pre-Ingestion</span>
+    </div>
+
+    <div class="stack">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;">
+          <div>
+            <strong>Upload CSV</strong>
+            <div style="color:var(--subtle); font-size:12px;">Detect missing columns, normalize dates, handle nulls, and preview cleaned data.</div>
+          </div>
+        </div>
+        <div class="gap"></div>
+        <div class="drop" id="drop">
+          <div>
+            <input type="file" id="file" accept=".csv,text/csv" />
+            Drag & drop a CSV here, or click to browse.
+          </div>
+        </div>
+        <div class="gap"></div>
+        <div class="row">
+          <div class="grid" id="stats" style="flex:1;"></div>
+          <div class="actions">
+            <button class="btn secondary" id="reset">Reset</button>
+            <button class="btn" id="proceed">Proceed with cleaned data →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="preview-card" hidden>
+        <div class="row" style="justify-content:space-between;">
+          <strong>Cleaned Preview</strong>
+          <div class="actions" id="column-actions"></div>
+        </div>
+        <div class="gap"></div>
+        <div class="table-wrap">
+          <table id="preview-table">
+            <thead><tr id="preview-head"></tr></thead>
+            <tbody id="preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="issues-card" hidden>
+        <div class="row" style="justify-content:space-between;">
+          <strong>Issues & Suggestions</strong>
+          <span class="badge warn" id="issues-count">0 issues</span>
+        </div>
+        <div class="gap"></div>
+        <div id="issues-list"></div>
+      </div>
+
+      <div class="card" id="out-card" hidden>
+        <div class="row" style="justify-content:space-between;">
+          <strong>Export / Ingest Options</strong>
+        </div>
+        <div class="gap"></div>
+        <div class="actions">
+          <button class="btn" id="dl-csv">Download cleaned CSV</button>
+          <button class="btn secondary" id="copy-json">Copy JSON schema</button>
+        </div>
+        <div class="gap"></div>
+        <details>
+          <summary>Preview generated SQL</summary>
+          <pre class="mono" id="sql-preview" style="max-height:220px; overflow:auto;"></pre>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = { rows: [], headers: [], cleaned: [], issues: [], file: null };
+
+    function toast(msg) {
+      const el = $("toast"); el.textContent = msg; el.hidden = false;
+      setTimeout(() => el.hidden = true, 2200);
+    }
+
+    function parseMaybeInt(v) {
+      if (v === null || v === undefined || v === "") return NaN;
+      const n = Number(String(v).replace(/[, ]/g, ""));
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function looksLikeDate(v) {
+      if (typeof v !== "string") return false;
+      return /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}([ T]\d{1,2}:\d{2}(:\d{2})?)?$/.test(v.trim());
+    }
+
+    function normalizeDate(v) {
+      if (!v) return v;
+      let s = String(v).trim();
+      const m = s.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})([ T](\d{1,2}):(\d{2})(:(\d{2}))?)?$/);
+      if (!m) return s;
+      let dd = m[1].padStart(2, "0");
+      let mm = m[2].padStart(2, "0");
+      let yyyy = m[3];
+      if (yyyy.length === 2) yyyy = "20" + yyyy;
+      const time = m[5] !== undefined ? ` ${m[5].padStart(2,"0")}:${m[6].padStart(2,"0")}${m[8] !== undefined ? ":"+m[8].padStart(2,"0") : ""}` : "";
+      return `${yyyy}-${mm}-${dd}${time}`;
+    }
+
+    function detectColumnIssues(rows, headers) {
+      const issues = [];
+      const missing = [];
+      for (let i = 0; i < headers.length; i++) {
+        const name = headers[i];
+        const blanks = rows.filter((r) => r[i] === null || r[i] === undefined || String(r[i]).trim() === "").length;
+        if (blanks > 0) missing.push({ column: name, blanks });
+      }
+      if (missing.length) issues.push({ type: "missing", detail: missing });
+
+      const dateCols = [];
+      for (let i = 0; i < headers.length; i++) {
+        const name = headers[i];
+        const hit = rows.filter((r) => looksLikeDate(r[i])).length;
+        if (hit > Math.max(1, Math.floor(rows.length * 0.3))) dateCols.push({ column: name, samples: hit });
+      }
+      if (dateCols.length) issues.push({ type: "date", detail: dateCols });
+
+      return issues;
+    }
+
+    function cleanRows(rows, headers) {
+      const out = rows.map((r) => r.slice());
+      for (let i = 0; i < headers.length; i++) {
+        const name = String(headers[i]).toLowerCase();
+        for (let j = 0; j < out.length; j++) {
+          const v = out[j][i];
+          if (v === null || v === undefined || String(v).trim() === "") {
+            if (name.includes("name") || name.includes("city") || name.includes("district") || name.includes("station")) {
+              out[j][i] = "UNKNOWN";
+            } else if (name.includes("date") || name.includes("dt") || name.includes("time")) {
+              out[j][i] = null;
+            } else if (name.includes("count") || name.includes("total") || name.includes("amount") || name.includes("value")) {
+              out[j][i] = 0;
+            } else {
+              out[j][i] = "";
+            }
+          }
+          if (looksLikeDate(out[j][i])) out[j][i] = normalizeDate(out[j][i]);
+        }
+      }
+      return out;
+    }
+
+    function renderPreview(rows, headers) {
+      const thead = $("preview-head");
+      const tbody = $("preview-body");
+      thead.innerHTML = "";
+      headers.forEach((h) => {
+        const th = document.createElement("th");
+        th.textContent = h;
+        thead.appendChild(th);
+      });
+      tbody.innerHTML = "";
+      const preview = rows.slice(0, 200);
+      preview.forEach((r) => {
+        const tr = document.createElement("tr");
+        headers.forEach((_, i) => {
+          const td = document.createElement("td");
+          td.textContent = r[i] === null || r[i] === undefined ? "<null>" : r[i];
+          td.className = "mono";
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      if (!preview.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = headers.length; td.className = "empty";
+        td.textContent = "No data rows after cleaning.";
+        tr.appendChild(td); tbody.appendChild(tr);
+      }
+    }
+
+    function renderIssues(issues) {
+      const list = $("issues-list");
+      const card = $("issues-card");
+      card.hidden = !issues.length;
+      $("issues-count").textContent = `${issues.length} issue${issues.length === 1 ? "" : "s"}`;
+      list.innerHTML = "";
+      issues.forEach((issue) => {
+        const row = document.createElement("div");
+        row.style.padding = "10px";
+        row.style.border = "1px solid var(--border)";
+        row.style.borderRadius = "10px";
+        row.style.marginBottom = "8px";
+        if (issue.type === "missing") {
+          row.innerHTML = `<div><strong>Missing values</strong></div>
+            <div style="color:var(--subtle); font-size:12px;">Columns with blanks: ${issue.detail.map((x) => x.column + ` (${x.blanks})`).join(", ")}</div>`;
+        } else if (issue.type === "date") {
+          row.innerHTML = `<div><strong>Non-standard dates</strong></div>
+            <div style="color:var(--subtle); font-size:12px;">Detected date-like values in: ${issue.detail.map((x) => x.column).join(", ")}</div>`;
+        }
+        list.appendChild(row);
+      });
+    }
+
+    function renderStats(rows, headers) {
+      const stats = $("stats");
+      const totalRows = rows.length;
+      const totalCols = headers.length;
+      const nulls = rows.reduce((acc, r) => acc + r.filter((v) => v === null || v === undefined || String(v).trim() === "").length, 0);
+      const dateLike = rows.reduce((acc, r) => acc + r.filter((v) => looksLikeDate(v)).length, 0);
+
+      stats.innerHTML = `
+        <div class="stat"><div class="label">Rows</div><div class="value">${totalRows.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">Columns</div><div class="value">${totalCols}</div></div>
+        <div class="stat"><div class="label">Blank / Null</div><div class="value">${nulls.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">Date-like</div><div class="value">${dateLike.toLocaleString()}</div></div>
+      `;
+    }
+
+    function buildIngestPayload() {
+      const headers = state.headers;
+      const rows = state.cleaned.slice(0, 2000);
+      const schema = headers.map((name) => {
+        const n = String(name).toLowerCase();
+        const type = (n.includes("date") || n.includes("dt") || n.includes("time")) ? "date" :
+                     (n.includes("count") || n.includes("amount") || n.includes("value") || n.includes("latency")) ? "int" : "text";
+        return { name, type, pii: false };
+      });
+      return { filename: state.file ? state.file.name : "cleaned.csv", schema, rows: rows.length, preview: { headers, rows: rows.slice(0, 10) } };
+    }
+
+    function renderExport(payload) {
+      $("out-card").hidden = false;
+      $("sql-preview").textContent = JSON.stringify(payload, null, 2);
+    }
+
+    async function ingestCleaned(payload) {
+      try {
+        const fd = new FormData();
+        const blob = new Blob([payload.preview.headers.join(",") + "\n" + payload.preview.rows.map((r) => r.join(",")).join("\n")], { type: "text/csv" });
+        fd.append("file", blob, payload.filename);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (!res.ok) throw new Error("Upload failed: " + res.status);
+        const data = await res.json();
+        toast("Uploaded successfully: " + (data.data?.filename || payload.filename));
+      } catch (e) {
+        toast("Ingest error: " + e.message);
+      }
+    }
+
+    function readCSV(text) {
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (!lines.length) return { headers: [], rows: [] };
+      const sep = lines[0].includes("\t") ? "\t" : ",";
+      const headers = lines[0].split(sep).map((h) => h.trim().replace(/^["']|["']$/g, ""));
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(sep).map((c) => {
+          const t = c.trim().replace(/^["']|["']$/g, "");
+          if (t === "" || t.toLowerCase() === "null" || t.toLowerCase() === "none" || t.toLowerCase() === "nan") return null;
+          return t;
+        });
+        while (cols.length < headers.length) cols.push(null);
+        if (cols.some((c) => c !== null)) rows.push(cols);
+      }
+      return { headers, rows };
+    }
+
+    function process(file) {
+      state.file = file;
+      const text = await file.text();
+      const parsed = readCSV(text);
+      state.headers = parsed.headers;
+      state.rows = parsed.rows;
+      state.issues = detectColumnIssues(state.rows, state.headers);
+      state.cleaned = cleanRows(state.rows, state.headers);
+
+      renderStats(state.rows, state.headers);
+      renderPreview(state.cleaned, state.headers);
+      renderIssues(state.issues);
+
+      const payload = buildIngestPayload();
+      renderExport(payload);
+      toast(`Loaded ${state.rows.length} rows · ${state.headers.length} columns`);
+    }
+
+    function wireUpload() {
+      const drop = $("drop");
+      const input = $("file");
+      drop.addEventListener("click", () => input.click());
+      input.addEventListener("change", (e) => {
+        if (e.target.files[0]) process(e.target.files[0]);
+      });
+      drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+      drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+      drop.addEventListener("drop", (e) => {
+        e.preventDefault(); drop.classList.remove("over");
+        const f = e.dataTransfer.files[0];
+        if (f) process(f);
+      });
+
+      $("reset").addEventListener("click", () => {
+        state.rows = []; state.headers = []; state.cleaned = []; state.issues = []; state.file = null;
+        $("preview-card").hidden = true; $("issues-card").hidden = true; $("out-card").hidden = true;
+        $("stats").innerHTML = ""; $("preview-body").innerHTML = ""; $("preview-head").innerHTML = "";
+        $("issues-list").innerHTML = ""; input.value = "";
+      });
+
+      $("proceed").addEventListener("click", async () => {
+        const payload = buildIngestPayload();
+        await ingestCleaned(payload);
+      });
+
+      $("dl-csv").addEventListener("click", () => {
+        const headers = state.headers;
+        const rows = state.cleaned;
+        const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${(v === null || v === undefined ? "" : String(v).replace(/"/g, '""'))}"`).join(","))].join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = (state.file ? state.file.name.replace(/\.csv$/i, "") : "cleaned") + "_clean.csv";
+        a.click(); URL.revokeObjectURL(url);
+        toast("CSV downloaded");
+      });
+
+      $("copy-json").addEventListener("click", () => {
+        const payload = buildIngestPayload();
+        navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        toast("JSON schema copied");
+      });
+    }
+
+    wireUpload();
+  </script>
+</body>
+</html>

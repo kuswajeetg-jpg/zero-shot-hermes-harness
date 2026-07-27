@@ -4,7 +4,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -26,8 +26,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="UP Police Analyst", version="0.2.0", lifespan=_lifespan)
 
     from src.api import health, runs, auth, analyst, sources, merge
+    from src.api import analyst_report, query_history, feedback
     from src.config.settings import get_settings
-    from fastapi import APIRouter
 
     api_router = APIRouter(prefix="/api")
     api_router.include_router(health.router)
@@ -35,13 +35,21 @@ def create_app() -> FastAPI:
     api_router.include_router(auth.router)
     api_router.include_router(analyst.router)
     api_router.include_router(sources.router)
-
+    api_router.include_router(merge.router)
+    api_router.include_router(analyst_report.router, prefix="/analyst")
+    api_router.include_router(query_history.router, prefix="/analyst")
+    api_router.include_router(feedback.router, prefix="/analyst")
     app.include_router(api_router)
+
     app.include_router(health.router)
     app.include_router(runs.router)
     app.include_router(auth.router)
     app.include_router(analyst.router)
     app.include_router(sources.router)
+    app.include_router(merge.router)
+    app.include_router(analyst_report.router, prefix="/analyst")
+    app.include_router(query_history.router, prefix="/analyst")
+    app.include_router(feedback.router, prefix="/analyst")
 
     app.add_middleware(
         CORSMiddleware,

@@ -19,22 +19,32 @@ class OpenRouterProvider(LLMProvider):
         self.model = model
         self._base_url = base_url.rstrip("/")
 
-    def complete(self, system: str, user: str, *, max_tokens: int = 1024) -> str:
+    def complete(self, system: str, user: str, *, max_tokens: int = 1024, model_override: str | None = None) -> str:
         def _call() -> str:
+            model_to_use = model_override or self.model
+            
+            json_payload = {
+                "max_tokens": max_tokens,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "provider": {"allow_fallbacks": True}
+            }
+            
+            models_list = [m.strip() for m in model_to_use.split(",") if m.strip()]
+            if len(models_list) > 1:
+                json_payload["models"] = models_list
+            else:
+                json_payload["model"] = models_list[0] if models_list else model_to_use
+
             resp = httpx.post(
                 f"{self._base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self._api_key}",
                     "content-type": "application/json",
                 },
-                json={
-                    "model": self.model,
-                    "max_tokens": max_tokens,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                },
+                json=json_payload,
                 timeout=120.0,
             )
             resp.raise_for_status()

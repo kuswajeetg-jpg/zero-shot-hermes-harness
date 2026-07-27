@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dataset Summary — UP Police Data Agent</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: rgba(15,23,42,0.70);
+    --text: #f1f5f9;
+    --subtle: #94a3b8;
+    --accent-emerald: #10b981;
+    --accent-indigo: #6366f1;
+    --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: radial-gradient(1200px 800px at 10% 10%, rgba(99,102,241,0.18), transparent),
+                radial-gradient(800px 600px at 90% 30%, rgba(16,185,129,0.18), transparent),
+                var(--bg);
+    color: var(--text);
+    font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 22px; }
+  .brand { display:flex; align-items:center; gap:12px; margin-bottom: 14px; }
+  .brand .logo {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-emerald), var(--accent-indigo));
+    box-shadow: 0 10px 30px rgba(99,102,241,0.35);
+  }
+  .brand h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
+  .brand .tag { margin-left: 8px; padding: 5px 10px; border-radius: 999px; background: rgba(99,102,241,0.18); color: #c7d2fe; border: 1px solid rgba(99,102,241,0.35); font-size: 12px; font-weight: 600; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    backdrop-filter: blur(18px); border-radius: 16px; padding: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  }
+  .stack { display:flex; flex-direction:column; gap:16px; }
+
+  .metrics { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:12px; }
+  .metric { background: rgba(15,23,42,0.55); padding: 14px; border-radius: 14px; border: 1px solid var(--border); }
+  .metric .label { color: var(--subtle); font-size: 12px; font-weight: 700; }
+  .metric .value { font-size: 22px; font-weight: 800; margin-top: 6px; }
+  .metric .sub { color: var(--subtle); font-size: 12px; margin-top: 4px; }
+
+  .charts { display:grid; grid-template-columns: repeat(auto-fit, minmax(360px,1fr)); gap:12px; }
+  canvas { width: 100% !important; height: 260px !important; }
+
+  .empty { color: var(--subtle); }
+  .right { display:flex; justify-content:flex-end; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; }
+  .btn {
+    appearance:none; border:0; padding:10px 14px; border-radius:10px;
+    background: linear-gradient(135deg, var(--accent-emerald), var(--accent-indigo));
+    color:white; font-weight:600; cursor:pointer;
+    box-shadow: 0 10px 30px rgba(16,185,129,0.25);
+    text-decoration:none;
+  }
+  .btn.secondary { background: rgba(15,23,42,0.65); border: 1px solid var(--border); color:#e2e8f0; }
+  a { color:#c7d2fe; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo"></div>
+      <h1>Dataset Summary</h1>
+      <span class="tag" id="filename-tag">Auto-generated briefing</span>
+    </div>
+
+    <div class="stack">
+      <div class="card" id="meta-card">
+        <div class="actions">
+          <a class="btn secondary" href="/app/">← Back to Ask</a>
+          <a class="btn" href="/app/csv-prep.html" target="_blank" rel="noopener">Prepare another CSV</a>
+        </div>
+        <div class="gap" style="height:8px;"></div>
+        <div class="empty" id="status">Loading latest dataset summary…</div>
+      </div>
+
+      <div class="metrics" id="metrics" hidden>
+        <!-- metric cards injected here -->
+      </div>
+
+      <div class="charts" id="charts" hidden>
+        <div class="card">
+          <div style="font-weight:700; margin-bottom:8px;">Top Categories</div>
+          <canvas id="chart1"></canvas>
+        </div>
+        <div class="card">
+          <div style="font-weight:700; margin-bottom:8px;">Metric Summary</div>
+          <canvas id="chart2"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  async function init() {
+    try {
+      const res = await fetch('/api/uploads');
+      const data = await res.json();
+      const items = data.items || [];
+      if (!items.length) {
+        $("status").textContent = "No datasets uploaded yet.";
+        return;
+      }
+      const latest = items[0];
+      $("status").textContent = latest.filename ? `Latest dataset: ${latest.filename} · Rows: ${latest.rows ?? "?"}` : "No metadata available.";
+      $("filename-tag").textContent = latest.filename || "Dataset";
+      const dash = latest.kpi_dashboard || latest.executive_briefing || null;
+      if (!dash) {
+        $("status").textContent += " · No automatic summary available.";
+        return;
+      }
+      renderMetrics(dash.metrics);
+      renderCharts(dash.charts);
+    } catch (e) {
+      $("status").textContent = "Failed to load dataset summary: " + e.message;
+    }
+  }
+
+  function renderMetrics(metrics) {
+    const wrap = $("metrics");
+    wrap.hidden = !metrics?.length;
+    wrap.innerHTML = "";
+    for (const m of metrics || []) {
+      const el = document.createElement("div");
+      el.className = "metric";
+      el.innerHTML = `<div class="label">${escape(m.title)}</div><div class="value">${escape(m.value)}</div><div class="sub">${escape(m.subtitle)}</div>`;
+      wrap.appendChild(el);
+    }
+  }
+
+  function renderCharts(charts) {
+    const wrap = $("charts");
+    wrap.hidden = !charts?.length;
+    charts.forEach((c, idx) => {
+      const canvas = $("chart" + (idx + 1));
+      if (!canvas || !c?.data?.rows?.length) return;
+      const labels = c.data.rows.map((r) => r[c.data.columns[0]]);
+      const values = c.data.rows.map((r) => Number(r[c.data.columns[1]]));
+      new Chart(canvas, {
+        type: c.type || "bar",
+        data: { labels, datasets: [{ label: c.title || "Value", data: values, backgroundColor: ["rgba(16,185,129,0.75)","rgba(99,102,241,0.75)","rgba(59,130,246,0.75)","rgba(245,158,11,0.75)","rgba(239,68,68,0.75)"].slice(0, labels.length).map((x,i)=> x) }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: "#94a3b8", maxRotation: 45 } }, y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.06)" } } } }
+      });
+    });
+  }
+
+  function escape(v) {
+    if (v === null || v === undefined) return "";
+    return String(v);
+  }
+
+  init();
+</script>
+</body>
+</html>

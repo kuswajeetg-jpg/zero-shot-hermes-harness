@@ -12,6 +12,7 @@ DEFAULT_MODELS = {
     "anthropic": "claude-sonnet-4-6",
     "gemini": "gemini-3.5-flash",
     "openrouter": "tencent/hy3",
+    "nvidia": "meta/llama-3.3-70b-instruct",
 }
 
 
@@ -30,6 +31,10 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="")
     openrouter_api_key: str = Field(default="")
     openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1")
+    nvidia_api_key: str = Field(default="")
+    nvidia_base_url: str = Field(default="https://integrate.api.nvidia.com/v1")
+    nvidia_plan_model: str = Field(default="")
+    nvidia_sql_model: str = Field(default="")
     log_level: str = Field(default="INFO")
 
     # auth
@@ -51,6 +56,8 @@ class Settings(BaseSettings):
             return "gemini"
         if self.openrouter_api_key:
             return "openrouter"
+        if self.nvidia_api_key:
+            return "nvidia"
         return "stub"
 
     def resolve_model(self) -> str:
@@ -63,6 +70,7 @@ class Settings(BaseSettings):
             "anthropic": self.anthropic_api_key,
             "gemini": self.gemini_api_key,
             "openrouter": self.openrouter_api_key,
+            "nvidia": self.nvidia_api_key,
         }.get(provider, "")
 
 

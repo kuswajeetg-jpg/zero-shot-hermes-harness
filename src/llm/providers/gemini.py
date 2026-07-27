@@ -16,10 +16,11 @@ class GeminiProvider(LLMProvider):
         self._api_key = api_key
         self.model = model
 
-    def complete(self, system: str, user: str, *, max_tokens: int = 1024) -> str:
+    def complete(self, system: str, user: str, *, max_tokens: int = 1024, model_override: str | None = None) -> str:
         def _call() -> str:
+            model_to_use = model_override or self.model
             resp = httpx.post(
-                _API_URL.format(model=self.model),
+                _API_URL.format(model=model_to_use),
                 headers={"x-goog-api-key": self._api_key},
                 json={
                     "system_instruction": {"parts": [{"text": system}]},

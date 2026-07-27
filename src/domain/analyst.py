@@ -1,6 +1,8 @@
 """Domain models for analyst backend slice and auth."""
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -17,6 +19,7 @@ class AuthResponse(BaseModel):
 class AuthorizationResponse(BaseModel):
     user_id: str
     email: str
+    role: str
     access_token: str
 
 
@@ -27,7 +30,7 @@ class CurrentUserResponse(BaseModel):
 
 class SessionResponse(BaseModel):
     session_token: str
-    schema: list[dict[str, str]] = []
+    schema_info: list[dict[str, str]] = Field(default=[], alias="schema")
     sources: list[dict[str, str]] = []
     files: list[dict[str, str]] = []
 
@@ -42,9 +45,13 @@ class UploadRequest(BaseModel):
 class UploadResponse(BaseModel):
     upload_id: str
     filename: str
-    schema: list[dict[str, str]]
+    schema_info: list[dict[str, Any]] = Field(..., alias="schema")
     rows: int
     suggested_questions: list[str] = []
+    executive_briefing: Any = None
+    conversation_prompt: str | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class AskRequest(BaseModel):
@@ -52,19 +59,26 @@ class AskRequest(BaseModel):
     source_id: str = "default_source"
     question: str
     user_id: str = "local"
-    lang: str = "en"
-    allowed_fields: list[str] | None = None
 
 
 class AskResponse(BaseModel):
-    run_id: str
-    answer_text: str | None = None
-    query_result: dict | list | None = None
-    chart_spec: dict | None = None
-    fallback_mode: bool = False
-    latency_ms: int | None = None
-    status: str | None = "completed"
+    run_id: str = Field(..., alias="run_id")
+    answer_text: str | None = Field(None)
+    query_result: dict[str, Any] | None = Field(None)
+    chart_spec: dict[str, Any] | None = Field(None)
+    advisor: dict[str, Any] | None = Field(None)
+    fallback_mode: bool = Field(False)
+    latency_ms: int | None = Field(None)
+    status: str | None = Field(None)
+    provider: str | None = Field(None)
+    model: str | None = Field(None)
+    error: str | None = Field(None)
+    checkpoint: str | None = Field(None)
 
+    model_config = {"populate_by_name": True}
+
+
+AskResponse.model_rebuild()
 
 class ChartRecommendationRequest(BaseModel):
     columns: list[str]

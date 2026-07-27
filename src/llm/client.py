@@ -32,12 +32,13 @@ class LLMClient:
     def model(self) -> str:
         return self._provider.model
 
-    def complete(self, system: str, user: str, *, max_tokens: int = 1024) -> str:
+    def complete(self, system: str, user: str, *, max_tokens: int = 1024, model_override: str | None = None) -> str:
+        model = model_override or self.model
         with log_span(
             self._log, "llm_complete",
-            provider=self._provider.name, model=self._provider.model,
+            provider=self._provider.name, model=model,
             input_chars=len(user),
         ) as span:
-            text = self._provider.complete(system, user, max_tokens=max_tokens)
+            text = self._provider.complete(system, user, max_tokens=max_tokens, model_override=model_override)
             span["output_chars"] = len(text)
             return text

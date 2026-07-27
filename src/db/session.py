@@ -61,3 +61,10 @@ def init_db() -> None:
     from src.db.models import Base
 
     Base.metadata.create_all(bind=_get_engine())
+
+
+def reset_db() -> None:
+    from src.db.models import Base
+
+    Base.metadata.drop_all(bind=_get_engine())
+    Base.metadata.create_all(bind=_get_engine())

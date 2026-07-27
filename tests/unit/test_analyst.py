@@ -108,6 +108,17 @@ def test_pii_flagging_in_csv_ingest():
     assert schema["name"] == "false"
 
 
+def test_semantic_enrichment_rule_based():
+    parsed = ingest_file_bytes(b"reg_num,fir_no,district\n1,ABC,Kanpur\n", "semantic.csv")
+    by_name = {c["name"]: c for c in parsed["schema"]}
+    assert by_name["reg_num"]["description"] == "Registration identifier/number"
+    assert "registration number" in by_name["reg_num"]["synonyms"]
+    assert by_name["fir_no"]["description"] == "FIR number assigned to the complaint"
+    assert "fir id" in by_name["fir_no"]["synonyms"]
+    assert by_name["district"]["description"] == "District where the incident was registered"
+    assert "jurisdiction" in by_name["district"]["synonyms"]
+
+
 def test_csv_case_collision_headers_error():
     try:
         ingest_file_bytes(b"ID,id,value\n1,2,3\n", "case.csv")
@@ -123,4 +134,4 @@ def test_fallback_intent_classifier():
     assert classify_intent("Average response time") == "average"
     assert classify_intent("Compare districts") == "compare"
     assert classify_intent("Trend over months") == "trend"
-    assert classify_intent("What is the capital?") == "unknown"
+    assert classify_intent("What is the capital?") == "custom_query"

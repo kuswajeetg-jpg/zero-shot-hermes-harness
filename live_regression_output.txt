@@ -1,0 +1,92 @@
+Uploaded 3 dataset(s): ['dummy_police_fir_data_2000.csv', 'final_reports (1).csv', 'fir_registrations.csv']
+{
+  "datasets_uploaded": 3,
+  "queries_executed": 12,
+  "issues_found": 9,
+  "issues": [
+    "[MISSING] Structured Columns [final_reports (1).csv:Quick-Ask / top records] \u2014 columns=0",
+    "[MISSING] Structured Rows [final_reports (1).csv:Quick-Ask / top records] \u2014 rows=0",
+    "[MISSING] Chart Spec [final_reports (1).csv:Quick-Ask / top records] \u2014 chart_type=None, encoding keys=[]",
+    "[MISSING] Structured Columns [final_reports (1).csv:Executive / average by category] \u2014 columns=0",
+    "[MISSING] Structured Rows [final_reports (1).csv:Executive / average by category] \u2014 rows=0",
+    "[MISSING] Chart Spec [final_reports (1).csv:Executive / average by category] \u2014 chart_type=None, encoding keys=[]",
+    "[MISSING] Structured Columns [fir_registrations.csv:Quick-Ask / top records] \u2014 columns=0",
+    "[MISSING] Structured Rows [fir_registrations.csv:Quick-Ask / top records] \u2014 rows=0",
+    "[MISSING] Chart Spec [fir_registrations.csv:Quick-Ask / top records] \u2014 chart_type=None, encoding keys=[]"
+  ],
+  "sample_result": {
+    "file": "dummy_police_fir_data_2000.csv",
+    "label": "Quick-Ask / top records",
+    "question": "show top records",
+    "response": {
+      "run_id": "368f7c77-4687-447e-80d7-7fe0dd363028",
+      "answer_text": "Analysis of \"show top records\" based on 10 records.\n\nKey measure: Total Count averages 7.50, ranging from 6.00 to 10.00.\n\nHighest Total Count: Vijay Singh at 10.00.\n\nLeading Accused Name by volume: Vijay Singh (10.0%); Geeta Tripathi (10.0%); Ravi Bhatt (10.0%); Sanjay Bhatt (10.0%); Pooja Gupta (10.0%).\n\nExecutive Notes\n- Volume spike detected in Total Count; peak value is 10.00.",
+      "query_result": {
+        "columns": [
+          "Accused Name",
+          "total_count"
+        ],
+        "rows": [
+          {
+            "Accused Name": "Vijay Singh",
+            "total_count": 10
+          },
+          {
+            "Accused Name": "Geeta Tripathi",
+            "total_count": 8
+          },
+          {
+            "Accused Name": "Ravi Bhatt",
+            "total_count": 8
+          },
+          {
+            "Accused Name": "Sanjay Bhatt",
+            "total_count": 8
+          },
+          {
+            "Accused Name": "Pooja Gupta",
+            "total_count": 7
+          },
+          {
+            "Accused Name": "Rohit Srivastava",
+            "total_count": 7
+          },
+          {
+            "Accused Name": "Suresh Chauhan",
+            "total_count": 7
+          },
+          {
+            "Accused Name": "Varun Mishra",
+            "total_count": 7
+          },
+          {
+            "Accused Name": "Vijay Srivastava",
+            "total_count": 7
+          },
+          {
+            "Accused Name": "Vijay Tiwari",
+            "total_count": 6
+          }
+        ],
+        "timed_out": false
+      },
+      "chart_spec": {
+        "chart_type": "bar",
+        "title": "Top Accused Name by Total Count",
+        "encoding": {
+          "x_axis": "Accused Name",
+          "y_axis": "total_count"
+        },
+        "color_theme": "amber",
+        "recommended": true
+      },
+      "advisor": null,
+      "fallback_mode": true,
+      "latency_ms": 3098,
+      "status": "completed",
+      "provider": "stub",
+      "model": "rule-based_fallback",
+      "error": null
+    }
+  }
+}

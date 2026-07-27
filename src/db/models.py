@@ -44,7 +44,7 @@ class User(Base):
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=_uuid)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     hashed_password: Mapped[str | None] = mapped_column(Text, nullable=True)
-    role: Mapped[str] = mapped_column(Text, nullable=False, default="user")
+    role: Mapped[str] = mapped_column(Text, nullable=False, default="officer")
     sso_provider: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, default=_now
@@ -68,6 +68,7 @@ class Upload(Base):
     session_id: Mapped[str] = mapped_column(Text, nullable=False)
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     schema_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    profile_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     rows: Mapped[int | None] = mapped_column(Integer, nullable=True)
     storage_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -85,6 +86,7 @@ class QueryRun(Base):
     query_normalized: Mapped[str | None] = mapped_column(Text, nullable=True)
     chart_spec: Mapped[str | None] = mapped_column(Text, nullable=True)
     context_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    plan_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     fallback_mode: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="completed")
@@ -93,6 +95,9 @@ class QueryRun(Base):
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, default=_now
     )
+    thread_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    previous_query_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    follow_up_suggestions: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Export(Base):
@@ -118,6 +123,20 @@ class AuditLog(Base):
     target: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_fingerprint: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=_now
+    )
+
+
+class QueryFeedback(Base):
+    __tablename__ = "query_feedback"
+    id: Mapped[str] = mapped_column(Text, primary_key=True, default=_uuid)
+    run_id: Mapped[str] = mapped_column(Text, nullable=False)
+    user_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rating: Mapped[str] = mapped_column(Text, nullable=False)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    plan_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    query_normalized: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, default=_now
     )
